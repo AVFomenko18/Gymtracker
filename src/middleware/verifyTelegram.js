@@ -23,13 +23,17 @@ function verifyTelegramInitData(initData, botToken) {
 }
 
 async function authMiddleware(req, res, next) {
-  const initData = req.headers['x-telegram-init-data'];
+  const botToken = process.env.BOT_TOKEN;
+  if (!botToken) {
+    return res.status(500).json({ error: 'BOT_TOKEN env variable is not set on the server' });
+  }
 
+  const initData = req.headers['x-telegram-init-data'];
   if (!initData) {
     return res.status(401).json({ error: 'Missing Telegram auth' });
   }
 
-  const user = verifyTelegramInitData(initData, process.env.BOT_TOKEN);
+  const user = verifyTelegramInitData(initData, botToken);
   if (!user) {
     return res.status(401).json({ error: 'Invalid Telegram auth' });
   }
