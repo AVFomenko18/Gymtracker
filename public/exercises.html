@@ -125,6 +125,7 @@
   </div>
 
   <script src="/js/api.js?v=5"></script>
+  <script src="/js/cache.js"></script>
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready(); tg.expand();
@@ -155,7 +156,11 @@
     let selectedMuscle = MUSCLE_GROUPS[0];
 
     async function load() {
-      exercises = await api.get('/api/exercises');
+      const cached = dataCache.get('exercises');
+      if (cached) { exercises = cached; renderList(); }
+      const fresh = await api.get('/api/exercises');
+      exercises = fresh;
+      dataCache.set('exercises', fresh);
       renderList();
     }
 
@@ -260,6 +265,7 @@
       }
 
       closeModal();
+      dataCache.clear('exercises');
       await load();
     }
 
@@ -268,6 +274,7 @@
         if (!confirmed) return;
         await api.delete(`/api/exercises/${id}`);
         exercises = exercises.filter(e => String(e.id) !== String(id));
+        dataCache.set('exercises', exercises);
         renderList();
       });
     }

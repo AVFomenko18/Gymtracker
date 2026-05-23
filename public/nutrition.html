@@ -113,6 +113,7 @@
   </div>
 
   <script src="/js/api.js?v=5"></script>
+  <script src="/js/cache.js"></script>
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready(); tg.expand();
@@ -162,7 +163,12 @@
     }
 
     async function loadMeals() {
-      meals = await api.get(`/api/meals?date=${currentDate}`);
+      const key = 'meals-' + currentDate;
+      const cached = dataCache.get(key);
+      if (cached) { meals = cached; renderSummary(); renderMeals(); }
+      const fresh = await api.get(`/api/meals?date=${currentDate}`);
+      meals = fresh;
+      dataCache.set(key, fresh);
       renderSummary();
       renderMeals();
     }
@@ -259,12 +265,14 @@
       ['meal-name','meal-kcal','meal-protein','meal-fat','meal-carbs']
         .forEach(id => document.getElementById(id).value = '');
 
+      dataCache.clear('meals-' + currentDate);
       await loadMeals();
     }
 
     async function deleteMeal(id) {
       await api.delete(`/api/meals/${id}`);
       meals = meals.filter(m => String(m.id) !== String(id));
+      dataCache.set('meals-' + currentDate, meals);
       renderSummary();
       renderMeals();
     }

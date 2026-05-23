@@ -96,6 +96,7 @@
   </div>
 
   <script src="/js/api.js?v=5"></script>
+  <script src="/js/cache.js"></script>
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready(); tg.expand();
@@ -118,7 +119,11 @@
     let measurements = [];
 
     async function load() {
-      measurements = await api.get('/api/measurements');
+      const cached = dataCache.get('measurements');
+      if (cached) { measurements = cached; render(); }
+      const fresh = await api.get('/api/measurements');
+      measurements = fresh;
+      dataCache.set('measurements', fresh);
       render();
     }
 
@@ -181,6 +186,7 @@
       }
 
       await api.post('/api/measurements', data);
+      dataCache.clear('measurements');
 
       // Clear inputs
       ['m-weight','m-fat','m-chest','m-waist','m-hips','m-biceps','m-thigh']
@@ -196,6 +202,7 @@
         if (!confirmed) return;
         await api.delete(`/api/measurements/${id}`);
         measurements = measurements.filter(m => String(m.id) !== String(id));
+        dataCache.set('measurements', measurements);
         render();
       });
     }
