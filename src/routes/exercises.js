@@ -36,7 +36,7 @@ router.get('/:id/stats', async (req, res) => {
   if (period === 'year')  dateFilter = `AND w.date >= CURRENT_DATE - INTERVAL '1 year'`;
 
   const sets = await pool.query(
-    `SELECT w.date, s.weight, s.reps, s.set_order
+    `SELECT TO_CHAR(w.date, 'YYYY-MM-DD') AS date, s.weight, s.reps, s.set_order
      FROM sets s
      JOIN workouts w ON w.id = s.workout_id
      WHERE s.exercise_id = $1 AND w.user_id = $2 ${dateFilter}
