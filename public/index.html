@@ -6,14 +6,31 @@
   <title>Gym Tracker</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    #user-card { display: flex; align-items: center; gap: 12px; }
+    .user-avatar {
+      width: 48px; height: 48px; border-radius: 50%;
+      object-fit: cover; flex-shrink: 0;
+    }
+    .user-avatar-placeholder {
+      width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700;
+    }
+  </style>
 </head>
 <body>
   <div class="header">💪 Gym Tracker</div>
 
   <div class="page">
     <div class="card" id="user-card">
-      <div style="font-size:15px; font-weight:600" id="user-name">Загрузка...</div>
-      <div style="font-size:13px; opacity:0.5; margin-top:4px" id="user-greeting"></div>
+      <div id="user-avatar-wrap"></div>
+      <div>
+        <div style="font-size:15px; font-weight:600" id="user-name">Загрузка...</div>
+        <div style="font-size:13px; opacity:0.5; margin-top:4px" id="user-greeting"></div>
+      </div>
     </div>
 
     <div class="nav-grid">
@@ -76,6 +93,14 @@
       const hour = new Date().getHours();
       const greeting = hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
       document.getElementById('user-greeting').textContent = greeting + '! Готов к тренировке?';
+
+      const avatarWrap = document.getElementById('user-avatar-wrap');
+      if (user.photo_url) {
+        avatarWrap.innerHTML = `<img class="user-avatar" src="${user.photo_url}" alt="">`;
+      } else {
+        const initial = (user.first_name || '?')[0].toUpperCase();
+        avatarWrap.innerHTML = `<div class="user-avatar-placeholder">${initial}</div>`;
+      }
     }
   </script>
 </body>
