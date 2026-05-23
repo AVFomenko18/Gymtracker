@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Упражнения</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .search-wrap {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--tg-theme-bg-color, #fff);
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #f0f0f0);
+    }
+    .search-input {
+      width: 100%; padding: 10px 14px; border-radius: 10px;
+      border: 1.5px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      color: var(--tg-theme-text-color, #000);
+      font-size: 15px;
+    }
+    .search-input:focus { outline: none; border-color: var(--tg-theme-button-color, #2481cc); }
+
+    .group-title {
+      font-size: 12px; font-weight: 700; opacity: 0.5;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 12px 16px 4px;
+    }
+
+    .exercise-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #f0f0f0);
+      cursor: pointer;
+    }
+    .exercise-item:active { background: var(--tg-theme-secondary-bg-color, #f5f5f5); }
+    .exercise-item.selecting:active { background: var(--tg-theme-button-color, #2481cc20); }
+
+    .ex-name { flex: 1; font-size: 15px; }
+    .ex-custom-badge {
+      font-size: 10px; background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff);
+      padding: 2px 6px; border-radius: 6px; opacity: 0.8;
+    }
+    .ex-actions { display: flex; gap: 2px; }
+    .btn-icon {
+      background: none; border: none; font-size: 17px; cursor: pointer;
+      padding: 4px 6px; opacity: 0.6; border-radius: 6px;
+    }
+    .btn-icon:active { opacity: 1; background: var(--tg-theme-secondary-bg-color, #f0f0f0); }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: flex; align-items: flex-end; z-index: 100;
+    }
+    .modal {
+      background: var(--tg-theme-bg-color, #fff);
+      border-radius: 16px 16px 0 0;
+      padding: 20px 16px 32px;
+      width: 100%;
+    }
+    .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+    .modal-input {
+      width: 100%; padding: 12px; border-radius: 10px; margin-bottom: 10px;
+      border: 1.5px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      color: var(--tg-theme-text-color, #000);
+      font-size: 15px;
+    }
+    .modal-input:focus { outline: none; border-color: var(--tg-theme-button-color, #2481cc); }
+    .muscle-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .chip {
+      padding: 7px 14px; border-radius: 20px; font-size: 13px; cursor: pointer;
+      border: 1.5px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      color: var(--tg-theme-text-color, #000);
+    }
+    .chip.active {
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff);
+      border-color: var(--tg-theme-button-color, #2481cc);
+    }
+    .modal-btns { display: flex; gap: 8px; }
+    .btn-cancel {
+      flex: 1; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600;
+      border: 1.5px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+      background: transparent; color: var(--tg-theme-text-color, #000); cursor: pointer;
+    }
+    .btn-save {
+      flex: 2; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600;
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff); border: none; cursor: pointer;
+    }
+
+    .no-results { text-align: center; padding: 40px 20px; opacity: 0.5; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <button id="back-btn" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    <span id="page-title">Упражнения</span>
+    <button onclick="openModal()" style="background:none;border:none;font-size:24px;cursor:pointer;padding:0 0 0 auto;margin-left:auto;color:var(--tg-theme-button-color,#2481cc)">+</button>
+  </div>
+
+  <div class="search-wrap">
+    <input class="search-input" type="search" id="search" placeholder="🔍 Поиск упражнения..." oninput="renderList()">
+  </div>
+
+  <div id="list"></div>
+
+  <!-- Create/Edit modal -->
+  <div class="modal-overlay" id="modal" style="display:none" onclick="closeModalOnBg(event)">
+    <div class="modal">
+      <div class="modal-title" id="modal-title">Новое упражнение</div>
+      <input class="modal-input" type="text" id="ex-name-input" placeholder="Название упражнения">
+      <div style="font-size:13px;opacity:0.6;margin-bottom:8px">Группа мышц:</div>
+      <div class="muscle-chips" id="chips"></div>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+        <button class="btn-save" onclick="saveExercise()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js?v=5"></script>
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready(); tg.expand();
+
+    const params = new URLSearchParams(location.search);
+    const selectMode = params.get('mode') === 'select'; // selecting for workout
+    const workoutId = params.get('workoutId');
+
+    document.getElementById('page-title').textContent = selectMode ? 'Выбрать упражнение' : 'Упражнения';
+
+    // Back button behaviour
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => goBack());
+    document.getElementById('back-btn').onclick = goBack;
+
+    function goBack() {
+      if (selectMode && workoutId) {
+        location.href = `/workout.html?id=${workoutId}`;
+      } else {
+        history.back();
+      }
+    }
+
+    const MUSCLE_GROUPS = ['Ноги','Грудь','Спина','Плечи','Бицепс','Трицепс','Пресс','Кардио','Другое'];
+
+    let exercises = [];
+    let editingId = null;
+    let selectedMuscle = MUSCLE_GROUPS[0];
+
+    async function load() {
+      exercises = await api.get('/api/exercises');
+      renderList();
+    }
+
+    function renderList() {
+      const query = document.getElementById('search').value.trim().toLowerCase();
+      const filtered = query
+        ? exercises.filter(e => e.name.toLowerCase().includes(query))
+        : exercises;
+
+      if (!filtered.length) {
+        document.getElementById('list').innerHTML = `<div class="no-results">Ничего не найдено</div>`;
+        return;
+      }
+
+      // Group
+      const groups = {};
+      for (const ex of filtered) {
+        const mg = ex.muscle_group || 'Другое';
+        if (!groups[mg]) groups[mg] = [];
+        groups[mg].push(ex);
+      }
+
+      let html = '';
+      for (const [mg, list] of Object.entries(groups)) {
+        html += `<div class="group-title">${mg}</div>`;
+        for (const ex of list) {
+          const isCustom = ex.user_id !== null;
+          const selectAttr = selectMode ? `onclick="selectExercise('${ex.id}','${ex.name.replace(/'/g,"&#39;")}')"` : '';
+          html += `<div class="exercise-item${selectMode?' selecting':''}" ${selectMode ? selectAttr : ''}>
+            <span class="ex-name">${ex.name}</span>
+            ${isCustom ? '<span class="ex-custom-badge">моё</span>' : ''}
+            ${isCustom && !selectMode ? `
+              <div class="ex-actions">
+                <button class="btn-icon" onclick="openEdit('${ex.id}','${ex.name.replace(/'/g,"&#39;")}','${ex.muscle_group||''}')">✏️</button>
+                <button class="btn-icon" onclick="deleteExercise('${ex.id}','${ex.name.replace(/'/g,"&#39;")}')">🗑</button>
+              </div>` : ''}
+            ${selectMode ? '<span style="opacity:0.3;font-size:18px">›</span>' : ''}
+          </div>`;
+        }
+      }
+      document.getElementById('list').innerHTML = html;
+    }
+
+    async function selectExercise(id, name) {
+      if (!selectMode || !workoutId) return;
+      // Store selected exercise in sessionStorage and go back
+      sessionStorage.setItem('selectedExercise', JSON.stringify({ id, name }));
+      location.href = `/workout.html?id=${workoutId}&addExercise=${id}`;
+    }
+
+    // Modal
+    function renderChips() {
+      document.getElementById('chips').innerHTML = MUSCLE_GROUPS.map(mg =>
+        `<button class="chip${selectedMuscle===mg?' active':''}" onclick="selectMuscle('${mg}')">${mg}</button>`
+      ).join('');
+    }
+
+    function selectMuscle(mg) {
+      selectedMuscle = mg;
+      renderChips();
+    }
+
+    function openModal() {
+      editingId = null;
+      selectedMuscle = MUSCLE_GROUPS[0];
+      document.getElementById('modal-title').textContent = 'Новое упражнение';
+      document.getElementById('ex-name-input').value = '';
+      renderChips();
+      document.getElementById('modal').style.display = 'flex';
+      setTimeout(() => document.getElementById('ex-name-input').focus(), 100);
+    }
+
+    function openEdit(id, name, muscleGroup) {
+      editingId = id;
+      selectedMuscle = muscleGroup || MUSCLE_GROUPS[0];
+      document.getElementById('modal-title').textContent = 'Редактировать';
+      document.getElementById('ex-name-input').value = name;
+      renderChips();
+      document.getElementById('modal').style.display = 'flex';
+      setTimeout(() => document.getElementById('ex-name-input').focus(), 100);
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+      editingId = null;
+    }
+
+    function closeModalOnBg(e) {
+      if (e.target === document.getElementById('modal')) closeModal();
+    }
+
+    async function saveExercise() {
+      const name = document.getElementById('ex-name-input').value.trim();
+      if (!name) { tg.showAlert('Введи название'); return; }
+
+      if (editingId) {
+        // Update — delete old and create new (simplest approach)
+        await api.delete(`/api/exercises/${editingId}`);
+        await api.post('/api/exercises', { name, muscle_group: selectedMuscle });
+      } else {
+        await api.post('/api/exercises', { name, muscle_group: selectedMuscle });
+      }
+
+      closeModal();
+      await load();
+    }
+
+    async function deleteExercise(id, name) {
+      tg.showConfirm(`Удалить упражнение "${name}"?`, async (confirmed) => {
+        if (!confirmed) return;
+        await api.delete(`/api/exercises/${id}`);
+        exercises = exercises.filter(e => String(e.id) !== String(id));
+        renderList();
+      });
+    }
+
+    load().catch(err => {
+      document.getElementById('list').innerHTML =
+        `<div class="no-results" style="color:#e53e3e">Ошибка: ${err.message}</div>`;
+    });
+  </script>
+</body>
+</html>

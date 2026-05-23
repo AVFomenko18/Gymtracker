@@ -27,4 +27,13 @@ router.post('/', async (req, res) => {
   res.status(201).json(result.rows[0]);
 });
 
+// Delete custom exercise (only user's own)
+router.delete('/:id', async (req, res) => {
+  await pool.query(
+    `DELETE FROM exercises WHERE id = $1 AND user_id = $2`,
+    [req.params.id, req.dbUser.id]
+  );
+  res.json({ ok: true });
+});
+
 module.exports = router;

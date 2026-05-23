@@ -22,7 +22,7 @@
     </div>
   </div>
 
-  <script src="/js/api.js?v=6"></script>
+  <script src="/js/api.js?v=7"></script>
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready();
@@ -36,6 +36,7 @@
 
     const params = new URLSearchParams(location.search);
     const existingId = params.get('id');
+    const addExerciseId = params.get('addExercise');
 
     async function init() {
       exercises = await api.get('/api/exercises');
@@ -53,6 +54,13 @@
       }
 
       render();
+
+      // Auto-add exercise coming back from picker
+      if (addExerciseId) {
+        addExerciseById(addExerciseId);
+        // Clean URL without reloading
+        history.replaceState({}, '', `/workout.html?id=${workoutId}`);
+      }
     }
 
     function localToday() {
@@ -141,27 +149,10 @@
         html += `</div>`;
       }
 
-      // Add exercise selector
-      const grouped = {};
-      for (const ex of exercises) {
-        const mg = ex.muscle_group || 'Другое';
-        if (!grouped[mg]) grouped[mg] = [];
-        grouped[mg].push(ex);
-      }
-
-      let options = '<option value="">— выбери упражнение —</option>';
-      for (const [mg, exList] of Object.entries(grouped)) {
-        options += `<optgroup label="${mg}">`;
-        for (const ex of exList) {
-          options += `<option value="${ex.id}">${ex.name}</option>`;
-        }
-        options += '</optgroup>';
-      }
-
       html += `<div class="card">
-        <div style="font-size:14px;font-weight:600;margin-bottom:10px">Добавить упражнение</div>
-        <select id="exercise-select">${options}</select>
-        <button class="btn-primary" onclick="addExercise()">Добавить упражнение</button>
+        <button class="btn-primary" onclick="goToExercisePicker()" style="margin-bottom:0">
+          + Выбрать упражнение
+        </button>
       </div>`;
 
       if (sets.length === 0) {
@@ -171,32 +162,29 @@
       document.getElementById('main-content').innerHTML = html;
     }
 
-    async function addExercise() {
-      const sel = document.getElementById('exercise-select');
-      const exerciseId = sel.value; // keep as string to match DB ids
-      if (!exerciseId) return;
+    function goToExercisePicker() {
+      location.href = `/exercises.html?mode=select&workoutId=${workoutId}`;
+    }
 
-      const ex = exercises.find(e => String(e.id) === exerciseId);
+    function addExerciseById(exerciseId) {
+      const ex = exercises.find(e => String(e.id) === String(exerciseId));
       if (!ex) return;
 
-      // If already added, just focus the input
-      if (sets.some(s => String(s.exercise_id) === exerciseId)) {
-        document.getElementById(`w-${exerciseId}`)?.focus();
+      if (sets.some(s => String(s.exercise_id) === String(exerciseId))) {
+        setTimeout(() => document.getElementById(`w-${exerciseId}`)?.focus(), 100);
         return;
       }
 
       sets.push({
         id: 'placeholder-' + exerciseId,
-        exercise_id: exerciseId,
+        exercise_id: String(exerciseId),
         exercise_name: ex.name,
         muscle_group: ex.muscle_group,
-        weight: 0,
-        reps: 0,
-        _placeholder: true,
+        weight: 0, reps: 0, _placeholder: true,
       });
 
       render();
-      setTimeout(() => document.getElementById(`w-${exerciseId}`)?.focus(), 50);
+      setTimeout(() => document.getElementById(`w-${exerciseId}`)?.focus(), 100);
     }
 
     async function addSet(exerciseId) {
