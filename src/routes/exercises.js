@@ -27,6 +27,33 @@ router.post('/', async (req, res) => {
   res.status(201).json(result.rows[0]);
 });
 
+// Exercise stats
+router.get('/:id/stats', async (req, res) => {
+  const { period } = req.query;
+  let dateFilter = '';
+  if (period === 'week')  dateFilter = `AND w.date >= CURRENT_DATE - INTERVAL '7 days'`;
+  if (period === 'month') dateFilter = `AND w.date >= CURRENT_DATE - INTERVAL '30 days'`;
+  if (period === 'year')  dateFilter = `AND w.date >= CURRENT_DATE - INTERVAL '1 year'`;
+
+  const sets = await pool.query(
+    `SELECT w.date, s.weight, s.reps, s.set_order
+     FROM sets s
+     JOIN workouts w ON w.id = s.workout_id
+     WHERE s.exercise_id = $1 AND w.user_id = $2 ${dateFilter}
+     ORDER BY w.date ASC, s.set_order ASC`,
+    [req.params.id, req.dbUser.id]
+  );
+
+  const sessionMap = {};
+  for (const row of sets.rows) {
+    const d = String(row.date).slice(0, 10);
+    if (!sessionMap[d]) sessionMap[d] = [];
+    sessionMap[d].push({ weight: parseFloat(row.weight), reps: parseInt(row.reps) });
+  }
+  const sessions = Object.entries(sessionMap).map(([date, s]) => ({ date, sets: s }));
+  res.json({ sessions });
+});
+
 // Delete custom exercise (only user's own)
 router.delete('/:id', async (req, res) => {
   await pool.query(

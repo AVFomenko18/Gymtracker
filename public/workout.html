@@ -95,6 +95,11 @@
     }
     .chevron { display: inline-block; transition: transform 0.2s; }
     .chevron.closed { transform: rotate(-90deg); }
+
+    .stats-btn {
+      background: none; border: none; font-size: 15px; cursor: pointer;
+      padding: 0 3px; opacity: 0.5; flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -291,6 +296,7 @@
             </div>` : ''}
             <span class="exercise-name" style="${selectMode?'margin-left:8px':''}">${g.exercise_name}</span>
             <span class="tonnage-badge">${exTonnage.toFixed(1)} кг</span>
+            ${!selectMode ? `<button class="stats-btn" onclick="event.stopPropagation();location.href='/exercise-stats.html?id=${exId}&name=${encodeURIComponent(g.exercise_name)}'">📊</button>` : ''}
             ${!selectMode ? `<button class="collapse-btn" onclick="event.stopPropagation();toggleSetsCollapse('${exId}')"><span class="chevron${isCollapsed?' closed':''}">▾</span></button>` : ''}
           </div>
           ${!isCollapsed ? `<div class="muscle-tag" style="margin-bottom:6px">${g.muscle_group || ''}</div>` : ''}`;

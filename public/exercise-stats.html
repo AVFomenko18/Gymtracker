@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Статистика</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .period-tabs {
+      display: flex; gap: 6px; padding: 12px 16px 0;
+    }
+    .period-tab {
+      flex: 1; padding: 8px 0; border-radius: 20px; font-size: 13px; font-weight: 600;
+      border: none; cursor: pointer; text-align: center;
+      background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+      color: var(--tg-theme-hint-color, #999);
+    }
+    .period-tab.active {
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff);
+    }
+
+    .chart-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .chart-max { font-size: 13px; color: var(--tg-theme-hint-color, #999); margin-left: 8px; font-weight: 400; }
+    .chart-svg { width: 100%; display: block; margin: 8px 0 4px; }
+    .chart-labels {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: var(--tg-theme-hint-color, #999); margin-top: 2px;
+    }
+
+    .stat-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-label { font-size: 14px; opacity: 0.7; }
+    .stat-value { font-size: 15px; font-weight: 700; }
+
+    .history-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+    .history-table { border-collapse: collapse; width: 100%; }
+    .history-table th {
+      font-size: 11px; color: var(--tg-theme-hint-color, #999);
+      padding: 4px 8px; font-weight: 600; text-align: center; white-space: nowrap;
+    }
+    .history-table td {
+      font-size: 13px; font-weight: 600;
+      padding: 4px 8px; text-align: center; white-space: nowrap;
+    }
+    .empty-stats { text-align: center; padding: 60px 20px; opacity: 0.4; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <button onclick="history.back()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    <span id="ex-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:8px"></span>
+  </div>
+
+  <div class="period-tabs">
+    <button class="period-tab" onclick="setPeriod('week')">Неделя</button>
+    <button class="period-tab active" onclick="setPeriod('month')">Месяц</button>
+    <button class="period-tab" onclick="setPeriod('year')">Год</button>
+    <button class="period-tab" onclick="setPeriod('all')">Все</button>
+  </div>
+
+  <div class="page" id="content">
+    <div class="spinner">Загрузка...</div>
+  </div>
+
+  <script src="/js/api.js?v=8"></script>
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready(); tg.expand();
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => history.back());
+
+    const params = new URLSearchParams(location.search);
+    const exerciseId = params.get('id');
+    const exerciseName = decodeURIComponent(params.get('name') || 'Упражнение');
+
+    document.getElementById('ex-name').textContent = exerciseName;
+    document.title = exerciseName;
+
+    let currentPeriod = 'month';
+
+    function setPeriod(period) {
+      currentPeriod = period;
+      document.querySelectorAll('.period-tab').forEach((btn, i) => {
+        btn.classList.toggle('active', ['week','month','year','all'][i] === period);
+      });
+      load();
+    }
+
+    async function load() {
+      document.getElementById('content').innerHTML = '<div class="spinner">Загрузка...</div>';
+      const data = await api.get(`/api/exercises/${exerciseId}/stats?period=${currentPeriod}`);
+      render(data);
+    }
+
+    function formatDate(dateStr) {
+      const [y, m, d] = String(dateStr).slice(0, 10).split('-').map(Number);
+      const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+      return `${d} ${months[m-1]}`;
+    }
+
+    function buildSVG(values, w, h) {
+      if (!values.length) return '';
+      if (values.length === 1) {
+        return `<rect x="0" y="0" width="${w}" height="${h}" fill="rgba(36,129,204,0.08)" rx="6"/>
+                <circle cx="${w/2}" cy="${h/2}" r="5" fill="rgba(36,129,204,0.8)"/>`;
+      }
+      const pad = 10;
+      const minV = Math.min(...values), maxV = Math.max(...values);
+      const range = maxV - minV || 1;
+      const pts = values.map((v, i) => ({
+        x: (i / (values.length - 1)) * w,
+        y: pad + (h - pad*2) - ((v - minV) / range) * (h - pad*2)
+      }));
+      let line = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+      for (let i = 1; i < pts.length; i++) {
+        const cp = (pts[i-1].x + pts[i].x) / 2;
+        line += ` C ${cp.toFixed(1)} ${pts[i-1].y.toFixed(1)} ${cp.toFixed(1)} ${pts[i].y.toFixed(1)} ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+      }
+      const area = line + ` L ${pts[pts.length-1].x.toFixed(1)} ${h} L 0 ${h} Z`;
+      return `<path d="${area}" fill="rgba(36,129,204,0.12)"/>
+              <path d="${line}" fill="none" stroke="rgba(36,129,204,0.85)" stroke-width="2.5" stroke-linecap="round"/>`;
+    }
+
+    function chartCard(title, values, sessions, unit) {
+      if (values.length < 1) return '';
+      const maxVal = Math.max(...values);
+      const svg = buildSVG(values, 320, 120);
+      const labelLeft = formatDate(sessions[0].date);
+      const labelRight = sessions.length > 1 ? formatDate(sessions[sessions.length-1].date) : '';
+      return `<div class="card">
+        <div class="chart-title">${title}<span class="chart-max">max ${maxVal}${unit}</span></div>
+        <svg class="chart-svg" viewBox="0 0 320 120" xmlns="http://www.w3.org/2000/svg">${svg}</svg>
+        <div class="chart-labels"><span>${labelLeft}</span>${labelRight ? `<span>${labelRight}</span>` : ''}</div>
+      </div>`;
+    }
+
+    function render({ sessions }) {
+      if (!sessions.length) {
+        document.getElementById('content').innerHTML = `<div class="empty-stats">Нет данных за выбранный период</div>`;
+        return;
+      }
+
+      const stats = sessions.map(s => ({
+        date: s.date,
+        sets: s.sets,
+        maxWeight: Math.max(...s.sets.map(x => x.weight)),
+        maxReps:   Math.max(...s.sets.map(x => x.reps)),
+        tonnage:   s.sets.reduce((sum, x) => sum + x.weight * x.reps, 0),
+      }));
+
+      const allMaxWeight = Math.max(...stats.map(s => s.maxWeight));
+      const allMaxReps   = Math.max(...stats.map(s => s.maxReps));
+      const totalTonnage = stats.reduce((sum, s) => sum + s.tonnage, 0);
+      const totalSets    = sessions.reduce((sum, s) => sum + s.sets.length, 0);
+
+      let html = '';
+
+      // Summary
+      html += `<div class="card">
+        <div class="stat-row"><span class="stat-label">Макс. вес</span><span class="stat-value">${allMaxWeight} кг</span></div>
+        <div class="stat-row"><span class="stat-label">Макс. повторы</span><span class="stat-value">${allMaxReps}</span></div>
+        <div class="stat-row"><span class="stat-label">Общий тоннаж</span><span class="stat-value">${totalTonnage.toFixed(0)} кг</span></div>
+        <div class="stat-row"><span class="stat-label">Тренировок</span><span class="stat-value">${sessions.length}</span></div>
+        <div class="stat-row"><span class="stat-label">Всего подходов</span><span class="stat-value">${totalSets}</span></div>
+      </div>`;
+
+      // Charts
+      html += chartCard('Тоннаж  ', stats.map(s => s.tonnage), stats, ' кг');
+      html += chartCard('Макс. вес  ', stats.map(s => s.maxWeight), stats, ' кг');
+      html += chartCard('Макс. повторы  ', stats.map(s => s.maxReps), stats, '');
+
+      // History table (last 8 sessions)
+      const recent = stats.slice(-8);
+      const maxRows = Math.max(...recent.map(s => s.sets.length));
+      const rows = Array.from({ length: maxRows }, (_, ri) =>
+        `<tr>${recent.map(s => s.sets[ri]
+          ? `<td>${s.sets[ri].weight} × ${s.sets[ri].reps}</td>`
+          : `<td style="opacity:0.2">—</td>`
+        ).join('')}</tr>`
+      ).join('');
+
+      html += `<div class="card">
+        <div class="history-title">История</div>
+        <div style="overflow-x:auto">
+          <table class="history-table">
+            <thead><tr>${recent.map(s => `<th>${formatDate(s.date)}</th>`).join('')}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+
+      document.getElementById('content').innerHTML = html;
+    }
+
+    load().catch(err => {
+      document.getElementById('content').innerHTML =
+        `<div class="empty-stats" style="color:#e53e3e">Ошибка: ${err.message}</div>`;
+    });
+  </script>
+</body>
+</html>
