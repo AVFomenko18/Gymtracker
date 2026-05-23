@@ -20,6 +20,12 @@ app.use('/api/me', authMiddleware, meRouter);
 app.use('/api/exercises', authMiddleware, exercisesRouter);
 app.use('/api/workouts', authMiddleware, workoutsRouter);
 
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Server error:', err.message, err.stack);
+  res.status(500).json({ error: err.message || 'Internal server error' });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
