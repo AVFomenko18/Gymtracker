@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>История</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="header">
+    <button onclick="history.back()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    📋 История тренировок
+  </div>
+
+  <div class="page">
+    <button class="btn-primary" onclick="location.href='/workout.html'">+ Новая тренировка</button>
+    <div id="list"><div class="spinner">Загрузка...</div></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => history.back());
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr + 'T12:00:00');
+      return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    async function load() {
+      const workouts = await api.get('/api/workouts');
+      const el = document.getElementById('list');
+
+      if (!workouts.length) {
+        el.innerHTML = '<div class="empty">Тренировок пока нет.<br>Нажми «Новая тренировка»!</div>';
+        return;
+      }
+
+      el.innerHTML = workouts.map(w => `
+        <div class="card" onclick="location.href='/workout.html?id=${w.id}'" style="cursor:pointer">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-weight:600;font-size:15px">${formatDate(w.date)}</div>
+              <div style="font-size:13px;opacity:0.6;margin-top:4px">${w.total_sets} подходов</div>
+            </div>
+            <div class="tonnage-badge">${parseFloat(w.tonnage).toFixed(1)} кг</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    load().catch(err => {
+      document.getElementById('list').innerHTML = `<div class="empty">Ошибка: ${err.message}</div>`;
+    });
+  </script>
+</body>
+</html>

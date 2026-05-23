@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Питание</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="header">
+    <button onclick="history.back()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    🥗 Питание
+  </div>
+  <div class="page">
+    <div class="empty">Скоро здесь будет дневник питания 🥗</div>
+  </div>
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready(); tg.expand();
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => history.back());
+  </script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Тренировка</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="header">
+    <button onclick="history.back()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    🏋️ Тренировка
+    <span id="workout-date" style="font-size:13px;font-weight:400;opacity:0.6;margin-left:auto"></span>
+  </div>
+
+  <div class="page">
+    <div id="main-content">
+      <div class="spinner">Загрузка...</div>
+    </div>
+  </div>
+
+  <script src="/js/api.js?v=5"></script>
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => history.back());
+
+    let workoutId = null;
+    let exercises = [];
+    let sets = [];
+
+    const params = new URLSearchParams(location.search);
+    const existingId = params.get('id');
+
+    async function init() {
+      exercises = await api.get('/api/exercises');
+
+      if (existingId) {
+        workoutId = existingId;
+        const w = await api.get(`/api/workouts/${workoutId}`);
+        sets = w.sets || [];
+        document.getElementById('workout-date').textContent = formatDate(w.date);
+      } else {
+        const today = new Date().toISOString().slice(0, 10);
+        const w = await api.post('/api/workouts', { date: today });
+        workoutId = w.id;
+        document.getElementById('workout-date').textContent = formatDate(w.date);
+      }
+
+      render();
+    }
+
+    function formatDate(dateStr) {
+      // dateStr may be "2026-05-23" or "2026-05-23T00:00:00.000Z"
+      const clean = String(dateStr).slice(0, 10);
+      const [y, m, d] = clean.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    }
+
+    function groupByExercise() {
+      const map = {};
+      for (const s of sets) {
+        if (!map[s.exercise_id]) {
+          map[s.exercise_id] = {
+            exercise_id: s.exercise_id,
+            exercise_name: s.exercise_name,
+            muscle_group: s.muscle_group,
+            sets: [],
+          };
+        }
+        map[s.exercise_id].sets.push(s);
+      }
+      return Object.values(map);
+    }
+
+    function calcTonnage(arr) {
+      return arr.reduce((sum, s) => sum + parseFloat(s.weight) * parseInt(s.reps), 0);
+    }
+
+    function render() {
+      const groups = groupByExercise();
+      const realSetsAll = sets.filter(s => !s._placeholder);
+      const totalTonnage = calcTonnage(realSetsAll);
+
+      let html = '';
+
+      // Tonnage summary
+      if (realSetsAll.length > 0) {
+        html += `<div class="card">
+          <div class="summary"><span>Тоннаж тренировки</span><strong>${totalTonnage.toFixed(1)} кг</strong></div>
+          <div class="summary"><span>Подходов</span><strong>${realSetsAll.length}</strong></div>
+        </div>`;
+      }
+
+      // Exercise blocks
+      for (const g of groups) {
+        const exTonnage = calcTonnage(g.sets);
+        html += `<div class="card exercise-block">
+          <div class="exercise-title">
+            <span class="exercise-name">${g.exercise_name}</span>
+            <span class="tonnage-badge">${exTonnage.toFixed(1)} кг</span>
+          </div>
+          <div class="muscle-tag">${g.muscle_group || ''}</div>`;
+
+        const realSets = g.sets.filter(s => !s._placeholder);
+        for (let i = 0; i < realSets.length; i++) {
+          const s = realSets[i];
+          const t = (parseFloat(s.weight) * parseInt(s.reps)).toFixed(1);
+          html += `<div class="set-row">
+            <span class="set-num">${i + 1}</span>
+            <div class="set-info">
+              ${s.weight} кг × ${s.reps} повт
+              <div class="set-tonnage">${t} кг тоннаж</div>
+            </div>
+            <button class="btn-danger" onclick="deleteSet('${s.id}', '${g.exercise_id}')">×</button>
+          </div>`;
+        }
+
+        html += `<div class="input-row" id="input-${g.exercise_id}">
+          <input class="input-field" type="number" placeholder="Вес" id="w-${g.exercise_id}" min="0" step="0.5" style="min-width:0">
+          <input class="input-field" type="number" placeholder="Повт" id="r-${g.exercise_id}" min="1" step="1" style="min-width:0">
+          <button class="btn-add" onclick="addSet('${g.exercise_id}')">+</button>
+        </div>`;
+
+        html += `</div>`;
+      }
+
+      // Add exercise selector
+      const grouped = {};
+      for (const ex of exercises) {
+        const mg = ex.muscle_group || 'Другое';
+        if (!grouped[mg]) grouped[mg] = [];
+        grouped[mg].push(ex);
+      }
+
+      let options = '<option value="">— выбери упражнение —</option>';
+      for (const [mg, exList] of Object.entries(grouped)) {
+        options += `<optgroup label="${mg}">`;
+        for (const ex of exList) {
+          options += `<option value="${ex.id}">${ex.name}</option>`;
+        }
+        options += '</optgroup>';
+      }
+
+      html += `<div class="card">
+        <div style="font-size:14px;font-weight:600;margin-bottom:10px">Добавить упражнение</div>
+        <select id="exercise-select">${options}</select>
+        <button class="btn-primary" onclick="addExercise()">Добавить упражнение</button>
+      </div>`;
+
+      if (sets.length === 0) {
+        html = `<div class="empty">Нет подходов.<br>Выбери упражнение ниже.</div>` + html;
+      }
+
+      document.getElementById('main-content').innerHTML = html;
+    }
+
+    async function addExercise() {
+      const sel = document.getElementById('exercise-select');
+      const exerciseId = sel.value; // keep as string to match DB ids
+      if (!exerciseId) return;
+
+      const ex = exercises.find(e => String(e.id) === exerciseId);
+      if (!ex) return;
+
+      // If already added, just focus the input
+      if (sets.some(s => String(s.exercise_id) === exerciseId)) {
+        document.getElementById(`w-${exerciseId}`)?.focus();
+        return;
+      }
+
+      sets.push({
+        id: 'placeholder-' + exerciseId,
+        exercise_id: exerciseId,
+        exercise_name: ex.name,
+        muscle_group: ex.muscle_group,
+        weight: 0,
+        reps: 0,
+        _placeholder: true,
+      });
+
+      render();
+      setTimeout(() => document.getElementById(`w-${exerciseId}`)?.focus(), 50);
+    }
+
+    async function addSet(exerciseId) {
+      const weightInput = document.getElementById(`w-${exerciseId}`);
+      const repsInput = document.getElementById(`r-${exerciseId}`);
+      const weight = parseFloat(weightInput.value);
+      const reps = parseInt(repsInput.value);
+
+      if (!weight || !reps || weight <= 0 || reps <= 0) {
+        weightInput.focus();
+        return;
+      }
+
+      const newSet = await api.post(`/api/workouts/${workoutId}/sets`, {
+        exercise_id: exerciseId,
+        weight,
+        reps,
+      });
+
+      const ex = exercises.find(e => String(e.id) === String(exerciseId));
+      newSet.exercise_name = ex?.name || '';
+      newSet.muscle_group = ex?.muscle_group || '';
+
+      sets = sets.filter(s => !(s._placeholder && String(s.exercise_id) === String(exerciseId)));
+      sets.push(newSet);
+
+      weightInput.value = '';
+      repsInput.value = '';
+      render();
+    }
+
+    async function deleteSet(setId, exerciseId) {
+      await api.delete(`/api/workouts/sets/${setId}`);
+      sets = sets.filter(s => String(s.id) !== String(setId));
+      render();
+    }
+
+    init().catch(err => {
+      document.getElementById('main-content').innerHTML =
+        `<div class="empty" style="color:#e53e3e">❌ Ошибка загрузки:<br><br>${err.message}<br><br><small>Закрой и открой снова</small></div>`;
+    });
+  </script>
+</body>
+</html>

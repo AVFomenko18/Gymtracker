@@ -1,0 +1,100 @@
+const express = require('express');
+const router = express.Router();
+const pool = require('../db');
+
+// List workouts
+router.get('/', async (req, res) => {
+  const result = await pool.query(
+    `SELECT w.id, w.date, w.note, w.created_at,
+            COALESCE(SUM(s.weight * s.reps), 0) AS tonnage,
+            COUNT(DISTINCT s.id) AS total_sets
+     FROM workouts w
+     LEFT JOIN sets s ON s.workout_id = w.id
+     WHERE w.user_id = $1
+     GROUP BY w.id
+     ORDER BY w.date DESC, w.created_at DESC`,
+    [req.dbUser.id]
+  );
+  res.json(result.rows);
+});
+
+// Create workout
+router.post('/', async (req, res) => {
+  const date = req.body.date || new Date().toISOString().slice(0, 10);
+  const result = await pool.query(
+    `INSERT INTO workouts (user_id, date) VALUES ($1, $2) RETURNING *`,
+    [req.dbUser.id, date]
+  );
+  res.status(201).json(result.rows[0]);
+});
+
+// Get workout with all sets
+router.get('/:id', async (req, res) => {
+  const workout = await pool.query(
+    `SELECT * FROM workouts WHERE id = $1 AND user_id = $2`,
+    [req.params.id, req.dbUser.id]
+  );
+  if (!workout.rows.length) return res.status(404).json({ error: 'Not found' });
+
+  const sets = await pool.query(
+    `SELECT s.id, s.exercise_id, s.weight, s.reps, s.set_order,
+            e.name AS exercise_name, e.muscle_group
+     FROM sets s
+     JOIN exercises e ON e.id = s.exercise_id
+     WHERE s.workout_id = $1
+     ORDER BY s.exercise_id, s.set_order`,
+    [req.params.id]
+  );
+
+  res.json({ ...workout.rows[0], sets: sets.rows });
+});
+
+// Delete workout
+router.delete('/:id', async (req, res) => {
+  await pool.query(
+    `DELETE FROM workouts WHERE id = $1 AND user_id = $2`,
+    [req.params.id, req.dbUser.id]
+  );
+  res.json({ ok: true });
+});
+
+// Add set to workout
+router.post('/:id/sets', async (req, res) => {
+  const { exercise_id, weight, reps } = req.body;
+  if (!exercise_id || !weight || !reps) {
+    return res.status(400).json({ error: 'exercise_id, weight, reps required' });
+  }
+
+  // Verify workout belongs to user
+  const workout = await pool.query(
+    `SELECT id FROM workouts WHERE id = $1 AND user_id = $2`,
+    [req.params.id, req.dbUser.id]
+  );
+  if (!workout.rows.length) return res.status(404).json({ error: 'Workout not found' });
+
+  const orderResult = await pool.query(
+    `SELECT COALESCE(MAX(set_order), 0) + 1 AS next_order
+     FROM sets WHERE workout_id = $1 AND exercise_id = $2`,
+    [req.params.id, exercise_id]
+  );
+  const setOrder = orderResult.rows[0].next_order;
+
+  const result = await pool.query(
+    `INSERT INTO sets (workout_id, exercise_id, weight, reps, set_order)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [req.params.id, exercise_id, weight, reps, setOrder]
+  );
+  res.status(201).json(result.rows[0]);
+});
+
+// Delete set
+router.delete('/sets/:setId', async (req, res) => {
+  await pool.query(
+    `DELETE FROM sets WHERE id = $1
+     AND workout_id IN (SELECT id FROM workouts WHERE user_id = $2)`,
+    [req.params.setId, req.dbUser.id]
+  );
+  res.json({ ok: true });
+});
+
+module.exports = router;
