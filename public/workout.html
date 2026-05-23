@@ -11,7 +11,9 @@
   <div class="header">
     <button onclick="history.back()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
     🏋️ Тренировка
-    <span id="workout-date" style="font-size:13px;font-weight:400;opacity:0.6;margin-left:auto"></span>
+    <input type="date" id="workout-date-input"
+      style="margin-left:auto;border:none;background:transparent;font-size:13px;color:var(--tg-theme-hint-color,#999);cursor:pointer;outline:none;text-align:right;max-width:120px"
+      onchange="changeDate(this.value)">
   </div>
 
   <div class="page">
@@ -20,7 +22,7 @@
     </div>
   </div>
 
-  <script src="/js/api.js?v=5"></script>
+  <script src="/js/api.js?v=6"></script>
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready();
@@ -42,23 +44,33 @@
         workoutId = existingId;
         const w = await api.get(`/api/workouts/${workoutId}`);
         sets = w.sets || [];
-        document.getElementById('workout-date').textContent = formatDate(w.date);
+        setDateInput(w.date);
       } else {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localToday();
         const w = await api.post('/api/workouts', { date: today });
         workoutId = w.id;
-        document.getElementById('workout-date').textContent = formatDate(w.date);
+        setDateInput(w.date);
       }
 
       render();
     }
 
-    function formatDate(dateStr) {
-      // dateStr may be "2026-05-23" or "2026-05-23T00:00:00.000Z"
+    function localToday() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function setDateInput(dateStr) {
       const clean = String(dateStr).slice(0, 10);
-      const [y, m, d] = clean.split('-').map(Number);
-      const date = new Date(y, m - 1, d);
-      return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+      document.getElementById('workout-date-input').value = clean;
+    }
+
+    async function changeDate(newDate) {
+      if (!workoutId || !newDate) return;
+      await api.put(`/api/workouts/${workoutId}`, { date: newDate });
     }
 
     function groupByExercise() {

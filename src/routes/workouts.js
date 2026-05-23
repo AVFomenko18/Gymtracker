@@ -49,6 +49,18 @@ router.get('/:id', async (req, res) => {
   res.json({ ...workout.rows[0], sets: sets.rows });
 });
 
+// Update workout date
+router.put('/:id', async (req, res) => {
+  const { date } = req.body;
+  if (!date) return res.status(400).json({ error: 'date required' });
+  const result = await pool.query(
+    `UPDATE workouts SET date = $1 WHERE id = $2 AND user_id = $3 RETURNING *`,
+    [date, req.params.id, req.dbUser.id]
+  );
+  if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+  res.json(result.rows[0]);
+});
+
 // Delete workout
 router.delete('/:id', async (req, res) => {
   await pool.query(

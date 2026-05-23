@@ -6,6 +6,91 @@
   <title>История</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .workout-card {
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .workout-info { flex: 1; cursor: pointer; }
+    .workout-title { font-weight: 600; font-size: 15px; }
+    .workout-sub { font-size: 13px; opacity: 0.6; margin-top: 4px; }
+    .btn-delete-workout {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: #e53e3e;
+      cursor: pointer;
+      padding: 4px 8px;
+      opacity: 0.7;
+    }
+
+    /* Calendar */
+    .calendar {
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .cal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .cal-title {
+      font-size: 15px;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    .cal-nav {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--tg-theme-button-color, #2481cc);
+      padding: 0 8px;
+      line-height: 1;
+    }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 3px;
+    }
+    .cal-dow {
+      text-align: center;
+      font-size: 11px;
+      opacity: 0.5;
+      padding: 4px 0;
+      font-weight: 600;
+    }
+    .cal-day {
+      text-align: center;
+      padding: 6px 2px;
+      font-size: 13px;
+      border-radius: 8px;
+      cursor: default;
+      position: relative;
+      line-height: 1.4;
+    }
+    .cal-day.empty { }
+    .cal-day.today {
+      font-weight: 700;
+      color: var(--tg-theme-button-color, #2481cc);
+    }
+    .cal-day.has-workout {
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .cal-day.has-workout:active { opacity: 0.75; }
+  </style>
 </head>
 <body>
   <div class="header">
@@ -15,10 +100,12 @@
 
   <div class="page">
     <button class="btn-primary" onclick="location.href='/workout.html'">+ Новая тренировка</button>
+
+    <div id="calendar"></div>
     <div id="list"><div class="spinner">Загрузка...</div></div>
   </div>
 
-  <script src="/js/api.js"></script>
+  <script src="/js/api.js?v=5"></script>
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready();
@@ -26,35 +113,128 @@
     tg.BackButton.show();
     tg.BackButton.onClick(() => history.back());
 
+    const DAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+    const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                    'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+    let workouts = [];
+    let calYear = new Date().getFullYear();
+    let calMonth = new Date().getMonth(); // 0-based
+
     function formatDate(dateStr) {
-      const d = new Date(dateStr + 'T12:00:00');
-      return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+      const clean = String(dateStr).slice(0, 10);
+      const [y, m, d] = clean.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
     }
 
-    async function load() {
-      const workouts = await api.get('/api/workouts');
-      const el = document.getElementById('list');
+    // Returns map: "YYYY-MM-DD" -> workout id (last one that day)
+    function buildWorkoutDayMap() {
+      const map = {};
+      for (const w of workouts) {
+        const key = String(w.date).slice(0, 10);
+        map[key] = w.id;
+      }
+      return map;
+    }
 
+    function renderCalendar() {
+      const dayMap = buildWorkoutDayMap();
+      const today = new Date();
+      const todayKey = today.toISOString().slice(0, 10);
+
+      // First day of month (0=Sun..6=Sat), convert to Mon-based (0=Mon..6=Sun)
+      const firstDay = new Date(calYear, calMonth, 1);
+      let startDow = firstDay.getDay(); // 0=Sun
+      startDow = (startDow + 6) % 7;   // shift to Mon=0
+
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+      let html = `<div class="calendar">
+        <div class="cal-header">
+          <button class="cal-nav" onclick="changeMonth(-1)">‹</button>
+          <span class="cal-title">${MONTHS[calMonth]} ${calYear}</span>
+          <button class="cal-nav" onclick="changeMonth(1)">›</button>
+        </div>
+        <div class="cal-grid">`;
+
+      // Day of week headers
+      for (const d of DAYS) {
+        html += `<div class="cal-dow">${d}</div>`;
+      }
+
+      // Empty cells before first day
+      for (let i = 0; i < startDow; i++) {
+        html += `<div class="cal-day empty"></div>`;
+      }
+
+      // Day cells
+      for (let d = 1; d <= daysInMonth; d++) {
+        const mm = String(calMonth + 1).padStart(2, '0');
+        const dd = String(d).padStart(2, '0');
+        const key = `${calYear}-${mm}-${dd}`;
+        const isToday = key === todayKey;
+        const workoutId = dayMap[key];
+
+        let cls = 'cal-day';
+        if (isToday && !workoutId) cls += ' today';
+        if (workoutId) cls += ' has-workout';
+        if (workoutId) cls += isToday ? ' today' : '';
+
+        const onclick = workoutId ? `onclick="location.href='/workout.html?id=${workoutId}'"` : '';
+        const title = workoutId ? `title="Открыть тренировку"` : '';
+
+        html += `<div class="${cls}" ${onclick} ${title}>${d}</div>`;
+      }
+
+      html += `</div></div>`;
+      document.getElementById('calendar').innerHTML = html;
+    }
+
+    function changeMonth(delta) {
+      calMonth += delta;
+      if (calMonth < 0) { calMonth = 11; calYear--; }
+      if (calMonth > 11) { calMonth = 0; calYear++; }
+      renderCalendar();
+    }
+
+    function render() {
+      renderCalendar();
+
+      const el = document.getElementById('list');
       if (!workouts.length) {
-        el.innerHTML = '<div class="empty">Тренировок пока нет.<br>Нажми «Новая тренировка»!</div>';
+        el.innerHTML = '<div class="empty">Тренировок пока нет.<br>Нажми «+ Новая тренировка»!</div>';
         return;
       }
 
       el.innerHTML = workouts.map(w => `
-        <div class="card" onclick="location.href='/workout.html?id=${w.id}'" style="cursor:pointer">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div style="font-weight:600;font-size:15px">${formatDate(w.date)}</div>
-              <div style="font-size:13px;opacity:0.6;margin-top:4px">${w.total_sets} подходов</div>
-            </div>
-            <div class="tonnage-badge">${parseFloat(w.tonnage).toFixed(1)} кг</div>
+        <div class="workout-card">
+          <div class="workout-info" onclick="location.href='/workout.html?id=${w.id}'">
+            <div class="workout-title">${formatDate(w.date)}</div>
+            <div class="workout-sub">${w.total_sets} подходов</div>
           </div>
+          <div class="tonnage-badge">${parseFloat(w.tonnage).toFixed(1)} кг</div>
+          <button class="btn-delete-workout" onclick="deleteWorkout('${w.id}')">🗑</button>
         </div>
       `).join('');
     }
 
+    async function deleteWorkout(id) {
+      tg.showConfirm('Удалить тренировку? Это действие нельзя отменить.', async (confirmed) => {
+        if (!confirmed) return;
+        await api.delete(`/api/workouts/${id}`);
+        workouts = workouts.filter(w => String(w.id) !== String(id));
+        render();
+      });
+    }
+
+    async function load() {
+      workouts = await api.get('/api/workouts');
+      render();
+    }
+
     load().catch(err => {
-      document.getElementById('list').innerHTML = `<div class="empty">Ошибка: ${err.message}</div>`;
+      document.getElementById('list').innerHTML = `<div class="empty" style="color:#e53e3e">Ошибка: ${err.message}</div>`;
     });
   </script>
 </body>
