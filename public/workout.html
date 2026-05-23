@@ -6,33 +6,125 @@
   <title>Тренировка</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* Selection mode */
+    .select-btn {
+      background: none; border: none;
+      font-size: 13px; font-weight: 600;
+      color: var(--tg-theme-button-color, #2481cc);
+      cursor: pointer; padding: 0; margin-left: 10px; flex-shrink: 0;
+    }
+
+    .exercise-block { position: relative; transition: outline 0.15s; }
+    .exercise-block.selectable { cursor: pointer; }
+    .exercise-block.selected {
+      outline: 2px solid var(--tg-theme-button-color, #2481cc);
+      outline-offset: 1px;
+    }
+    .select-check {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid var(--tg-theme-button-color, #2481cc);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 13px;
+    }
+    .select-check.checked {
+      background: var(--tg-theme-button-color, #2481cc);
+      color: #fff;
+    }
+
+    /* Superset connector */
+    .superset-connector {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 16px; margin: -6px 0;
+      position: relative; z-index: 1;
+    }
+    .superset-line {
+      width: 3px; height: 28px; border-radius: 2px;
+      background: var(--tg-theme-button-color, #2481cc);
+      opacity: 0.6; flex-shrink: 0; margin-left: 10px;
+    }
+    .superset-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+      color: var(--tg-theme-button-color, #2481cc);
+      opacity: 0.8; text-transform: uppercase; flex: 1;
+    }
+    .superset-remove {
+      background: none; border: none; font-size: 14px;
+      color: #e53e3e; cursor: pointer; opacity: 0.7; padding: 2px 4px;
+    }
+
+    .exercise-block.in-superset {
+      border-left: 3px solid var(--tg-theme-button-color, #2481cc);
+      border-radius: 0 12px 12px 0;
+    }
+
+    /* Sticky superset action bar */
+    .superset-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--tg-theme-bg-color, #fff);
+      border-top: 1px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+      padding: 12px 16px 24px;
+      display: flex; gap: 10px; z-index: 50;
+    }
+    .superset-bar .btn-cancel-sel {
+      flex: 1; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600;
+      border: 1.5px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+      background: transparent; color: var(--tg-theme-text-color, #000); cursor: pointer;
+    }
+    .superset-bar .btn-superset {
+      flex: 2; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 700;
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff); border: none; cursor: pointer;
+    }
+    .superset-bar .btn-superset:disabled {
+      opacity: 0.4; cursor: default;
+    }
+
+    .page-with-bar { padding-bottom: 100px; }
+  </style>
 </head>
 <body>
   <div class="header">
-    <button onclick="history.back()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    <button onclick="goBack()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
     🏋️ Тренировка
     <input type="date" id="workout-date-input"
-      style="margin-left:auto;border:none;background:transparent;font-size:13px;color:var(--tg-theme-hint-color,#999);cursor:pointer;outline:none;text-align:right;max-width:120px"
+      style="margin-left:auto;border:none;background:transparent;font-size:13px;color:var(--tg-theme-hint-color,#999);cursor:pointer;outline:none;text-align:right;max-width:110px"
       onchange="changeDate(this.value)">
+    <button class="select-btn" id="select-toggle-btn" onclick="toggleSelectMode()">Выбрать</button>
   </div>
 
-  <div class="page">
+  <div class="page" id="page-wrap">
     <div id="main-content">
       <div class="spinner">Загрузка...</div>
     </div>
   </div>
 
-  <script src="/js/api.js?v=7"></script>
+  <!-- Superset action bar (shown in select mode) -->
+  <div class="superset-bar" id="superset-bar" style="display:none">
+    <button class="btn-cancel-sel" onclick="toggleSelectMode()">Отмена</button>
+    <button class="btn-superset" id="superset-btn" onclick="createSuperset()" disabled>
+      ⚡ Суперсет
+    </button>
+  </div>
+
+  <script src="/js/api.js?v=8"></script>
   <script>
     const tg = window.Telegram.WebApp;
-    tg.ready();
-    tg.expand();
+    tg.ready(); tg.expand();
     tg.BackButton.show();
-    tg.BackButton.onClick(() => history.back());
+    tg.BackButton.onClick(() => goBack());
+
+    function goBack() {
+      if (selectMode) { toggleSelectMode(); return; }
+      history.back();
+    }
 
     let workoutId = null;
     let exercises = [];
     let sets = [];
+    let supersets = []; // [{id, workout_id, exercise_id_1, exercise_id_2}]
+    let selectMode = false;
+    let selectedExercises = new Set(); // Set of exercise_id strings
 
     const params = new URLSearchParams(location.search);
     const existingId = params.get('id');
@@ -45,35 +137,31 @@
         workoutId = existingId;
         const w = await api.get(`/api/workouts/${workoutId}`);
         sets = w.sets || [];
+        supersets = w.supersets || [];
         setDateInput(w.date);
       } else {
         const today = localToday();
         const w = await api.post('/api/workouts', { date: today });
         workoutId = w.id;
+        supersets = [];
         setDateInput(w.date);
       }
 
       render();
 
-      // Auto-add exercise coming back from picker
       if (addExerciseId) {
         addExerciseById(addExerciseId);
-        // Clean URL without reloading
         history.replaceState({}, '', `/workout.html?id=${workoutId}`);
       }
     }
 
     function localToday() {
       const d = new Date();
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     }
 
     function setDateInput(dateStr) {
-      const clean = String(dateStr).slice(0, 10);
-      document.getElementById('workout-date-input').value = clean;
+      document.getElementById('workout-date-input').value = String(dateStr).slice(0,10);
     }
 
     async function changeDate(newDate) {
@@ -81,34 +169,67 @@
       await api.put(`/api/workouts/${workoutId}`, { date: newDate });
     }
 
+    function toggleSelectMode() {
+      selectMode = !selectMode;
+      selectedExercises.clear();
+      document.getElementById('select-toggle-btn').textContent = selectMode ? 'Готово' : 'Выбрать';
+      document.getElementById('superset-bar').style.display = selectMode ? 'flex' : 'none';
+      document.getElementById('page-wrap').classList.toggle('page-with-bar', selectMode);
+      render();
+    }
+
+    function toggleExerciseSelect(exerciseId) {
+      if (!selectMode) return;
+      const key = String(exerciseId);
+      if (selectedExercises.has(key)) {
+        selectedExercises.delete(key);
+      } else {
+        if (selectedExercises.size >= 2) return; // max 2
+        selectedExercises.add(key);
+      }
+      document.getElementById('superset-btn').disabled = selectedExercises.size !== 2;
+      render();
+    }
+
+    // Build superset lookup: exerciseId -> supersetId (for current workout)
+    function buildSupersetMap() {
+      const map = {}; // exerciseId -> {supersetId, partnerId}
+      for (const ss of supersets) {
+        const id1 = String(ss.exercise_id_1);
+        const id2 = String(ss.exercise_id_2);
+        map[id1] = { supersetId: String(ss.id), partnerId: id2 };
+        map[id2] = { supersetId: String(ss.id), partnerId: id1 };
+      }
+      return map;
+    }
+
     function groupByExercise() {
       const map = {};
       for (const s of sets) {
-        if (!map[s.exercise_id]) {
-          map[s.exercise_id] = {
-            exercise_id: s.exercise_id,
-            exercise_name: s.exercise_name,
-            muscle_group: s.muscle_group,
-            sets: [],
-          };
+        const key = String(s.exercise_id);
+        if (!map[key]) {
+          map[key] = { exercise_id: key, exercise_name: s.exercise_name, muscle_group: s.muscle_group, sets: [] };
         }
-        map[s.exercise_id].sets.push(s);
+        map[key].sets.push(s);
       }
       return Object.values(map);
     }
 
     function calcTonnage(arr) {
-      return arr.reduce((sum, s) => sum + parseFloat(s.weight) * parseInt(s.reps), 0);
+      return arr.filter(s => !s._placeholder).reduce((sum, s) => sum + parseFloat(s.weight) * parseInt(s.reps), 0);
     }
 
     function render() {
       const groups = groupByExercise();
       const realSetsAll = sets.filter(s => !s._placeholder);
       const totalTonnage = calcTonnage(realSetsAll);
+      const ssMap = buildSupersetMap();
+
+      // Order groups: pair superset partners together
+      const ordered = orderGroupsWithSupersets(groups, ssMap);
 
       let html = '';
 
-      // Tonnage summary
       if (realSetsAll.length > 0) {
         html += `<div class="card">
           <div class="summary"><span>Тоннаж тренировки</span><strong>${totalTonnage.toFixed(1)} кг</strong></div>
@@ -116,50 +237,115 @@
         </div>`;
       }
 
-      // Exercise blocks
-      for (const g of groups) {
+      for (let i = 0; i < ordered.length; i++) {
+        const g = ordered[i];
+        const exId = String(g.exercise_id);
         const exTonnage = calcTonnage(g.sets);
-        html += `<div class="card exercise-block">
+        const isSelected = selectedExercises.has(exId);
+        const ssInfo = ssMap[exId];
+        const inSuperset = !!ssInfo;
+
+        // Connector BEFORE this block if prev block is its superset partner
+        if (i > 0 && inSuperset && String(ordered[i-1].exercise_id) === ssInfo.partnerId) {
+          html += `<div class="superset-connector">
+            <div class="superset-line"></div>
+            <span class="superset-label">Суперсет</span>
+            <button class="superset-remove" onclick="removeSuperset('${ssInfo.supersetId}')">✕</button>
+          </div>`;
+        }
+
+        const selectAttrs = selectMode
+          ? `onclick="toggleExerciseSelect('${exId}')" style="cursor:pointer"`
+          : '';
+
+        html += `<div class="card exercise-block${inSuperset?' in-superset':''}${isSelected?' selected':''}${selectMode?' selectable':''}" ${selectAttrs}>
           <div class="exercise-title">
-            <span class="exercise-name">${g.exercise_name}</span>
+            ${selectMode ? `<div class="select-check${isSelected?' checked':''}">
+              ${isSelected ? '✓' : ''}
+            </div>` : ''}
+            <span class="exercise-name" style="${selectMode?'margin-left:8px':''}">${g.exercise_name}</span>
             <span class="tonnage-badge">${exTonnage.toFixed(1)} кг</span>
           </div>
-          <div class="muscle-tag">${g.muscle_group || ''}</div>`;
+          <div class="muscle-tag" style="margin-bottom:6px">${g.muscle_group || ''}</div>`;
 
         const realSets = g.sets.filter(s => !s._placeholder);
-        for (let i = 0; i < realSets.length; i++) {
-          const s = realSets[i];
+        for (let j = 0; j < realSets.length; j++) {
+          const s = realSets[j];
           const t = (parseFloat(s.weight) * parseInt(s.reps)).toFixed(1);
           html += `<div class="set-row">
-            <span class="set-num">${i + 1}</span>
+            <span class="set-num">${j+1}</span>
             <div class="set-info">
               ${s.weight} кг × ${s.reps} повт
               <div class="set-tonnage">${t} кг тоннаж</div>
             </div>
-            <button class="btn-danger" onclick="deleteSet('${s.id}', '${g.exercise_id}')">×</button>
+            ${!selectMode ? `<button class="btn-danger" onclick="deleteSet('${s.id}','${exId}')">×</button>` : ''}
           </div>`;
         }
 
-        html += `<div class="input-row" id="input-${g.exercise_id}">
-          <input class="input-field" type="number" placeholder="Вес" id="w-${g.exercise_id}" min="0" step="0.5" style="min-width:0">
-          <input class="input-field" type="number" placeholder="Повт" id="r-${g.exercise_id}" min="1" step="1" style="min-width:0">
-          <button class="btn-add" onclick="addSet('${g.exercise_id}')">+</button>
-        </div>`;
+        if (!selectMode) {
+          html += `<div class="input-row" id="input-${exId}">
+            <input class="input-field" type="number" placeholder="Вес" id="w-${exId}" min="0" step="0.5" style="min-width:0">
+            <input class="input-field" type="number" placeholder="Повт" id="r-${exId}" min="1" step="1" style="min-width:0">
+            <button class="btn-add" onclick="addSet('${exId}')">+</button>
+          </div>`;
+        }
 
         html += `</div>`;
       }
 
-      html += `<div class="card">
-        <button class="btn-primary" onclick="goToExercisePicker()" style="margin-bottom:0">
-          + Выбрать упражнение
-        </button>
-      </div>`;
+      if (!selectMode) {
+        html += `<div class="card">
+          <button class="btn-primary" onclick="goToExercisePicker()" style="margin-bottom:0">
+            + Выбрать упражнение
+          </button>
+        </div>`;
+      }
 
       if (sets.length === 0) {
         html = `<div class="empty">Нет подходов.<br>Выбери упражнение ниже.</div>` + html;
       }
 
       document.getElementById('main-content').innerHTML = html;
+    }
+
+    // Reorder groups so superset partners are adjacent
+    function orderGroupsWithSupersets(groups, ssMap) {
+      const result = [];
+      const placed = new Set();
+      for (const g of groups) {
+        const key = String(g.exercise_id);
+        if (placed.has(key)) continue;
+        result.push(g);
+        placed.add(key);
+        const ssInfo = ssMap[key];
+        if (ssInfo) {
+          const partner = groups.find(x => String(x.exercise_id) === ssInfo.partnerId);
+          if (partner && !placed.has(ssInfo.partnerId)) {
+            result.push(partner);
+            placed.add(ssInfo.partnerId);
+          }
+        }
+      }
+      return result;
+    }
+
+    async function createSuperset() {
+      if (selectedExercises.size !== 2) return;
+      const [id1, id2] = [...selectedExercises];
+      await api.post(`/api/workouts/${workoutId}/supersets`, {
+        exercise_id_1: id1,
+        exercise_id_2: id2,
+      });
+      // Refresh superset data
+      const w = await api.get(`/api/workouts/${workoutId}`);
+      supersets = w.supersets || [];
+      toggleSelectMode();
+    }
+
+    async function removeSuperset(supersetId) {
+      await api.delete(`/api/workouts/${workoutId}/supersets/${supersetId}`);
+      supersets = supersets.filter(ss => String(ss.id) !== String(supersetId));
+      render();
     }
 
     function goToExercisePicker() {
@@ -169,50 +355,34 @@
     function addExerciseById(exerciseId) {
       const ex = exercises.find(e => String(e.id) === String(exerciseId));
       if (!ex) return;
-
       if (sets.some(s => String(s.exercise_id) === String(exerciseId))) {
         setTimeout(() => document.getElementById(`w-${exerciseId}`)?.focus(), 100);
         return;
       }
-
       sets.push({
-        id: 'placeholder-' + exerciseId,
-        exercise_id: String(exerciseId),
-        exercise_name: ex.name,
-        muscle_group: ex.muscle_group,
+        id: 'placeholder-' + exerciseId, exercise_id: String(exerciseId),
+        exercise_name: ex.name, muscle_group: ex.muscle_group,
         weight: 0, reps: 0, _placeholder: true,
       });
-
       render();
       setTimeout(() => document.getElementById(`w-${exerciseId}`)?.focus(), 100);
     }
 
     async function addSet(exerciseId) {
-      const weightInput = document.getElementById(`w-${exerciseId}`);
-      const repsInput = document.getElementById(`r-${exerciseId}`);
-      const weight = parseFloat(weightInput.value);
-      const reps = parseInt(repsInput.value);
+      const wInput = document.getElementById(`w-${exerciseId}`);
+      const rInput = document.getElementById(`r-${exerciseId}`);
+      const weight = parseFloat(wInput.value);
+      const reps = parseInt(rInput.value);
+      if (!weight || !reps || weight <= 0 || reps <= 0) { wInput.focus(); return; }
 
-      if (!weight || !reps || weight <= 0 || reps <= 0) {
-        weightInput.focus();
-        return;
-      }
-
-      const newSet = await api.post(`/api/workouts/${workoutId}/sets`, {
-        exercise_id: exerciseId,
-        weight,
-        reps,
-      });
-
+      const newSet = await api.post(`/api/workouts/${workoutId}/sets`, { exercise_id: exerciseId, weight, reps });
       const ex = exercises.find(e => String(e.id) === String(exerciseId));
       newSet.exercise_name = ex?.name || '';
       newSet.muscle_group = ex?.muscle_group || '';
 
       sets = sets.filter(s => !(s._placeholder && String(s.exercise_id) === String(exerciseId)));
       sets.push(newSet);
-
-      weightInput.value = '';
-      repsInput.value = '';
+      wInput.value = ''; rInput.value = '';
       render();
     }
 

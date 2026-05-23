@@ -28,7 +28,7 @@ router.post('/', async (req, res) => {
   res.status(201).json(result.rows[0]);
 });
 
-// Get workout with all sets
+// Get workout with all sets + supersets
 router.get('/:id', async (req, res) => {
   const workout = await pool.query(
     `SELECT * FROM workouts WHERE id = $1 AND user_id = $2`,
@@ -46,7 +46,41 @@ router.get('/:id', async (req, res) => {
     [req.params.id]
   );
 
-  res.json({ ...workout.rows[0], sets: sets.rows });
+  const supersets = await pool.query(
+    `SELECT * FROM supersets WHERE workout_id = $1`,
+    [req.params.id]
+  );
+
+  res.json({ ...workout.rows[0], sets: sets.rows, supersets: supersets.rows });
+});
+
+// Create superset
+router.post('/:id/supersets', async (req, res) => {
+  const { exercise_id_1, exercise_id_2 } = req.body;
+  if (!exercise_id_1 || !exercise_id_2) {
+    return res.status(400).json({ error: 'exercise_id_1 and exercise_id_2 required' });
+  }
+  // Remove existing superset involving either exercise in this workout
+  await pool.query(
+    `DELETE FROM supersets WHERE workout_id = $1
+     AND (exercise_id_1 IN ($2,$3) OR exercise_id_2 IN ($2,$3))`,
+    [req.params.id, exercise_id_1, exercise_id_2]
+  );
+  const result = await pool.query(
+    `INSERT INTO supersets (workout_id, exercise_id_1, exercise_id_2)
+     VALUES ($1, $2, $3) RETURNING *`,
+    [req.params.id, exercise_id_1, exercise_id_2]
+  );
+  res.status(201).json(result.rows[0]);
+});
+
+// Delete superset
+router.delete('/:id/supersets/:supersetId', async (req, res) => {
+  await pool.query(
+    `DELETE FROM supersets WHERE id = $1 AND workout_id = $2`,
+    [req.params.supersetId, req.params.id]
+  );
+  res.json({ ok: true });
 });
 
 // Update workout date
