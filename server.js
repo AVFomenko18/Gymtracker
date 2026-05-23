@@ -6,6 +6,7 @@ const meRouter = require('./src/routes/me');
 const exercisesRouter = require('./src/routes/exercises');
 const workoutsRouter = require('./src/routes/workouts');
 const measurementsRouter = require('./src/routes/measurements');
+const mealsRouter = require('./src/routes/meals');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +22,7 @@ app.use('/api/me', authMiddleware, meRouter);
 app.use('/api/exercises', authMiddleware, exercisesRouter);
 app.use('/api/workouts', authMiddleware, workoutsRouter);
 app.use('/api/measurements', authMiddleware, measurementsRouter);
+app.use('/api/meals', authMiddleware, mealsRouter);
 
 // Global error handler
 app.use((err, req, res, next) => {

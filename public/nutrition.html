@@ -6,20 +6,285 @@
   <title>Питание</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .summary-card {
+      background:var(--tg-theme-secondary-bg-color,#f5f5f5);
+      border-radius:14px; padding:16px; margin-bottom:14px;
+    }
+    .summary-title { font-size:13px; opacity:0.6; margin-bottom:12px; }
+    .macro-row { display:flex; justify-content:space-between; margin-bottom:10px; align-items:center; }
+    .macro-label { font-size:14px; }
+    .macro-values { font-size:13px; text-align:right; }
+    .macro-current { font-weight:700; font-size:16px; }
+    .macro-goal { opacity:0.5; font-size:12px; }
+    .progress-bar { height:6px; background:rgba(0,0,0,0.08); border-radius:3px; margin-top:4px; overflow:hidden; }
+    .progress-fill { height:100%; border-radius:3px; background:var(--tg-theme-button-color,#2481cc); transition:width 0.3s; }
+    .progress-fill.over { background:#e53e3e; }
+
+    .form-card { background:var(--tg-theme-secondary-bg-color,#f5f5f5); border-radius:14px; padding:16px; margin-bottom:14px; }
+    .form-title { font-size:14px; font-weight:700; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+    .name-input {
+      width:100%; padding:10px 12px; border-radius:8px; margin-bottom:10px;
+      border:1.5px solid var(--tg-theme-hint-color,#ccc);
+      background:var(--tg-theme-bg-color,#fff);
+      color:var(--tg-theme-text-color,#000);
+      font-size:15px;
+    }
+    .name-input:focus { outline:none; border-color:var(--tg-theme-button-color,#2481cc); }
+    .macros-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; margin-bottom:10px; }
+    .macro-input-wrap { display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .macro-input-label { font-size:11px; opacity:0.6; }
+    .macro-input {
+      width:100%; padding:8px 4px; border-radius:8px; text-align:center;
+      border:1.5px solid var(--tg-theme-hint-color,#ccc);
+      background:var(--tg-theme-bg-color,#fff);
+      color:var(--tg-theme-text-color,#000);
+      font-size:14px; min-width:0;
+    }
+    .macro-input:focus { outline:none; border-color:var(--tg-theme-button-color,#2481cc); }
+
+    .meal-item {
+      background:var(--tg-theme-secondary-bg-color,#f5f5f5);
+      border-radius:10px; padding:12px 14px; margin-bottom:8px;
+      display:flex; align-items:center; gap:10px;
+    }
+    .meal-info { flex:1; }
+    .meal-name { font-size:15px; font-weight:600; }
+    .meal-macros { font-size:12px; opacity:0.6; margin-top:3px; }
+    .meal-kcal { font-size:15px; font-weight:700; flex-shrink:0; }
+
+    .date-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .date-nav-btn { background:none; border:none; font-size:20px; color:var(--tg-theme-button-color,#2481cc); cursor:pointer; padding:0 8px; }
+    .date-nav-label { font-size:14px; font-weight:600; }
+    .section-title { font-size:15px; font-weight:700; margin:14px 0 8px; }
+  </style>
 </head>
 <body>
   <div class="header">
     <button onclick="history.back()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
     🥗 Питание
   </div>
+
   <div class="page">
-    <div class="empty">Скоро здесь будет дневник питания 🥗</div>
+    <!-- Date nav -->
+    <div class="date-nav">
+      <button class="date-nav-btn" onclick="changeDay(-1)">‹</button>
+      <span class="date-nav-label" id="day-label"></span>
+      <button class="date-nav-btn" onclick="changeDay(1)">›</button>
+    </div>
+
+    <!-- Daily summary -->
+    <div class="summary-card" id="summary"></div>
+
+    <!-- Add meal form -->
+    <div class="form-card">
+      <div class="form-title">
+        <span>Добавить приём пищи</span>
+      </div>
+      <input class="name-input" type="text" id="meal-name" placeholder="Название (например: Гречка с курицей)">
+      <div class="macros-grid">
+        <div class="macro-input-wrap">
+          <span class="macro-input-label">Ккал</span>
+          <input class="macro-input" type="number" id="meal-kcal" placeholder="0" min="0">
+        </div>
+        <div class="macro-input-wrap">
+          <span class="macro-input-label">Белки г</span>
+          <input class="macro-input" type="number" id="meal-protein" placeholder="0" min="0">
+        </div>
+        <div class="macro-input-wrap">
+          <span class="macro-input-label">Жиры г</span>
+          <input class="macro-input" type="number" id="meal-fat" placeholder="0" min="0">
+        </div>
+        <div class="macro-input-wrap">
+          <span class="macro-input-label">Углев г</span>
+          <input class="macro-input" type="number" id="meal-carbs" placeholder="0" min="0">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="addMeal()">Добавить</button>
+    </div>
+
+    <!-- Meals list -->
+    <div class="section-title">Приёмы пищи</div>
+    <div id="meals-list"><div class="spinner">Загрузка...</div></div>
+
+    <!-- Goals settings -->
+    <div class="section-title">Дневные цели</div>
+    <div class="form-card" id="goals-form"></div>
   </div>
+
+  <script src="/js/api.js?v=5"></script>
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready(); tg.expand();
     tg.BackButton.show();
     tg.BackButton.onClick(() => history.back());
+
+    function localToday() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function formatDay(dateStr) {
+      const clean = String(dateStr).slice(0,10);
+      const [y,m,d] = clean.split('-').map(Number);
+      const date = new Date(y,m-1,d);
+      const today = localToday();
+      if (clean === today) return 'Сегодня';
+      const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+      const yKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`;
+      if (clean === yKey) return 'Вчера';
+      return date.toLocaleDateString('ru-RU', { day:'numeric', month:'long' });
+    }
+
+    function addDays(dateStr, n) {
+      const [y,m,d] = dateStr.split('-').map(Number);
+      const date = new Date(y,m-1,d);
+      date.setDate(date.getDate() + n);
+      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    }
+
+    let currentDate = localToday();
+    let meals = [];
+    let goals = { calories:2000, protein:150, fat:70, carbs:250 };
+
+    function changeDay(n) {
+      currentDate = addDays(currentDate, n);
+      document.getElementById('day-label').textContent = formatDay(currentDate);
+      loadMeals();
+    }
+
+    async function loadAll() {
+      document.getElementById('day-label').textContent = formatDay(currentDate);
+      const me = await api.get('/api/me');
+      goals = me.goals || goals;
+      renderGoalsForm();
+      await loadMeals();
+    }
+
+    async function loadMeals() {
+      meals = await api.get(`/api/meals?date=${currentDate}`);
+      renderSummary();
+      renderMeals();
+    }
+
+    function renderSummary() {
+      const totals = { calories:0, protein:0, fat:0, carbs:0 };
+      for (const m of meals) {
+        totals.calories += parseFloat(m.calories||0);
+        totals.protein  += parseFloat(m.protein||0);
+        totals.fat      += parseFloat(m.fat||0);
+        totals.carbs    += parseFloat(m.carbs||0);
+      }
+
+      const bar = (cur, goal) => {
+        const pct = goal > 0 ? Math.min((cur/goal)*100, 100) : 0;
+        const over = cur > goal && goal > 0;
+        return `<div class="progress-bar"><div class="progress-fill${over?' over':''}" style="width:${pct}%"></div></div>`;
+      };
+
+      const row = (label, cur, goal, unit) => `
+        <div class="macro-row">
+          <span class="macro-label">${label}</span>
+          <div class="macro-values">
+            <div class="macro-current">${Math.round(cur)} <span style="font-size:12px;font-weight:400">${unit}</span></div>
+            <div class="macro-goal">цель ${goal} ${unit}</div>
+          </div>
+        </div>
+        ${bar(cur, goal)}`;
+
+      document.getElementById('summary').innerHTML = `
+        <div class="summary-title">Итого за день</div>
+        ${row('Калории', totals.calories, goals.calories, 'ккал')}
+        ${row('Белки', totals.protein, goals.protein, 'г')}
+        ${row('Жиры', totals.fat, goals.fat, 'г')}
+        ${row('Углеводы', totals.carbs, goals.carbs, 'г')}`;
+    }
+
+    function renderMeals() {
+      const el = document.getElementById('meals-list');
+      if (!meals.length) {
+        el.innerHTML = '<div class="empty">Приёмов пищи нет.</div>';
+        return;
+      }
+      el.innerHTML = meals.map(m => `
+        <div class="meal-item">
+          <div class="meal-info">
+            <div class="meal-name">${m.name}</div>
+            <div class="meal-macros">Б ${parseFloat(m.protein).toFixed(0)}г · Ж ${parseFloat(m.fat).toFixed(0)}г · У ${parseFloat(m.carbs).toFixed(0)}г</div>
+          </div>
+          <span class="meal-kcal">${Math.round(m.calories)} ккал</span>
+          <button class="btn-danger" onclick="deleteMeal('${m.id}')">×</button>
+        </div>`).join('');
+    }
+
+    function renderGoalsForm() {
+      document.getElementById('goals-form').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="macro-input-wrap">
+            <span class="macro-input-label">Калории (ккал)</span>
+            <input class="macro-input" type="number" id="g-cal" value="${goals.calories}" min="0">
+          </div>
+          <div class="macro-input-wrap">
+            <span class="macro-input-label">Белки (г)</span>
+            <input class="macro-input" type="number" id="g-prot" value="${goals.protein}" min="0">
+          </div>
+          <div class="macro-input-wrap">
+            <span class="macro-input-label">Жиры (г)</span>
+            <input class="macro-input" type="number" id="g-fat" value="${goals.fat}" min="0">
+          </div>
+          <div class="macro-input-wrap">
+            <span class="macro-input-label">Углеводы (г)</span>
+            <input class="macro-input" type="number" id="g-carbs" value="${goals.carbs}" min="0">
+          </div>
+        </div>
+        <button class="btn-primary" style="margin-top:10px" onclick="saveGoals()">Сохранить цели</button>`;
+    }
+
+    async function addMeal() {
+      const name = document.getElementById('meal-name').value.trim();
+      if (!name) { tg.showAlert('Введи название блюда'); return; }
+
+      const [y,mo,d] = currentDate.split('-').map(Number);
+      const eaten_at = new Date(y,mo-1,d,12,0,0).toISOString();
+
+      await api.post('/api/meals', {
+        name,
+        calories: parseFloat(document.getElementById('meal-kcal').value)||0,
+        protein:  parseFloat(document.getElementById('meal-protein').value)||0,
+        fat:      parseFloat(document.getElementById('meal-fat').value)||0,
+        carbs:    parseFloat(document.getElementById('meal-carbs').value)||0,
+        eaten_at,
+      });
+
+      ['meal-name','meal-kcal','meal-protein','meal-fat','meal-carbs']
+        .forEach(id => document.getElementById(id).value = '');
+
+      await loadMeals();
+    }
+
+    async function deleteMeal(id) {
+      await api.delete(`/api/meals/${id}`);
+      meals = meals.filter(m => String(m.id) !== String(id));
+      renderSummary();
+      renderMeals();
+    }
+
+    async function saveGoals() {
+      goals = {
+        calories: parseInt(document.getElementById('g-cal').value)||2000,
+        protein:  parseInt(document.getElementById('g-prot').value)||150,
+        fat:      parseInt(document.getElementById('g-fat').value)||70,
+        carbs:    parseInt(document.getElementById('g-carbs').value)||250,
+      };
+      await api.put('/api/me/goals', goals);
+      tg.showAlert('Цели сохранены!');
+      renderSummary();
+    }
+
+    loadAll().catch(err => {
+      document.getElementById('meals-list').innerHTML =
+        `<div class="empty" style="color:#e53e3e">Ошибка: ${err.message}</div>`;
+    });
   </script>
 </body>
 </html>
