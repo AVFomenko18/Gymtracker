@@ -6,21 +6,204 @@
   <title>Замеры</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .form-card { background: var(--tg-theme-secondary-bg-color,#f5f5f5); border-radius:14px; padding:16px; margin-bottom:14px; }
+    .form-title { font-size:15px; font-weight:700; margin-bottom:14px; }
+    .field-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .field-label { font-size:14px; flex:1; }
+    .field-unit { font-size:12px; opacity:0.5; margin-left:4px; }
+    .field-input {
+      width:90px; padding:8px 10px; border-radius:8px; text-align:right;
+      border:1.5px solid var(--tg-theme-hint-color,#ccc);
+      background:var(--tg-theme-bg-color,#fff);
+      color:var(--tg-theme-text-color,#000);
+      font-size:15px;
+    }
+    .field-input:focus { outline:none; border-color:var(--tg-theme-button-color,#2481cc); }
+    .date-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .date-row label { font-size:14px; font-weight:600; }
+    .date-row input[type=date] {
+      padding:8px 10px; border-radius:8px;
+      border:1.5px solid var(--tg-theme-hint-color,#ccc);
+      background:var(--tg-theme-bg-color,#fff);
+      color:var(--tg-theme-text-color,#000);
+      font-size:14px;
+    }
+
+    .history-item {
+      background:var(--tg-theme-secondary-bg-color,#f5f5f5);
+      border-radius:12px; padding:14px 16px; margin-bottom:10px;
+    }
+    .history-date { font-size:13px; font-weight:700; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+    .metrics-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .metric-item { font-size:13px; }
+    .metric-label { opacity:0.5; font-size:11px; }
+    .metric-value { font-weight:600; }
+    .section-title { font-size:15px; font-weight:700; margin:16px 0 8px; }
+  </style>
 </head>
 <body>
   <div class="header">
     <button onclick="history.back()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
     📏 Замеры тела
   </div>
+
   <div class="page">
-    <div class="empty">Скоро здесь будут замеры тела 📏</div>
+    <!-- Form -->
+    <div class="form-card">
+      <div class="form-title">Новый замер</div>
+
+      <div class="date-row">
+        <label>Дата</label>
+        <input type="date" id="m-date">
+      </div>
+
+      <div class="field-row">
+        <span class="field-label">Вес<span class="field-unit">кг</span></span>
+        <input class="field-input" type="number" id="m-weight" placeholder="0.0" step="0.1" min="0">
+      </div>
+      <div class="field-row">
+        <span class="field-label">% жира<span class="field-unit">%</span></span>
+        <input class="field-input" type="number" id="m-fat" placeholder="0.0" step="0.1" min="0" max="60">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Грудь<span class="field-unit">см</span></span>
+        <input class="field-input" type="number" id="m-chest" placeholder="0" min="0">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Талия<span class="field-unit">см</span></span>
+        <input class="field-input" type="number" id="m-waist" placeholder="0" min="0">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Бёдра<span class="field-unit">см</span></span>
+        <input class="field-input" type="number" id="m-hips" placeholder="0" min="0">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Бицепс<span class="field-unit">см</span></span>
+        <input class="field-input" type="number" id="m-biceps" placeholder="0" min="0">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Бедро ноги<span class="field-unit">см</span></span>
+        <input class="field-input" type="number" id="m-thigh" placeholder="0" min="0">
+      </div>
+
+      <button class="btn-primary" style="margin-top:6px" onclick="saveMeasurement()">Сохранить замер</button>
+    </div>
+
+    <!-- History -->
+    <div class="section-title">История замеров</div>
+    <div id="history"><div class="spinner">Загрузка...</div></div>
   </div>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <script src="/js/api.js?v=5"></script>
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready(); tg.expand();
     tg.BackButton.show();
     tg.BackButton.onClick(() => history.back());
+
+    function localToday() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function formatDate(dateStr) {
+      const clean = String(dateStr).slice(0, 10);
+      const [y, m, d] = clean.split('-').map(Number);
+      return new Date(y, m-1, d).toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
+    }
+
+    document.getElementById('m-date').value = localToday();
+
+    let measurements = [];
+
+    async function load() {
+      measurements = await api.get('/api/measurements');
+      render();
+    }
+
+    function render() {
+      const el = document.getElementById('history');
+      if (!measurements.length) {
+        el.innerHTML = '<div class="empty">Замеров пока нет.</div>';
+        return;
+      }
+
+      el.innerHTML = measurements.map(m => {
+        const fields = [
+          { label:'Вес', value: m.weight_kg, unit:'кг' },
+          { label:'% жира', value: m.body_fat_pct, unit:'%' },
+          { label:'Грудь', value: m.chest_cm, unit:'см' },
+          { label:'Талия', value: m.waist_cm, unit:'см' },
+          { label:'Бёдра', value: m.hips_cm, unit:'см' },
+          { label:'Бицепс', value: m.biceps_cm, unit:'см' },
+          { label:'Бедро', value: m.thigh_cm, unit:'см' },
+        ].filter(f => f.value !== null && f.value !== undefined);
+
+        const grid = fields.map(f =>
+          `<div class="metric-item">
+            <div class="metric-label">${f.label}</div>
+            <div class="metric-value">${parseFloat(f.value).toFixed(1)} ${f.unit}</div>
+          </div>`
+        ).join('');
+
+        return `<div class="history-item">
+          <div class="history-date">
+            <span>${formatDate(m.date)}</span>
+            <button class="btn-danger" onclick="deleteMeasurement('${m.id}')">🗑</button>
+          </div>
+          <div class="metrics-grid">${grid}</div>
+        </div>`;
+      }).join('');
+    }
+
+    async function saveMeasurement() {
+      const val = id => {
+        const v = document.getElementById(id).value;
+        return v ? parseFloat(v) : null;
+      };
+
+      const data = {
+        date: document.getElementById('m-date').value || localToday(),
+        weight_kg:   val('m-weight'),
+        body_fat_pct: val('m-fat'),
+        chest_cm:    val('m-chest'),
+        waist_cm:    val('m-waist'),
+        hips_cm:     val('m-hips'),
+        biceps_cm:   val('m-biceps'),
+        thigh_cm:    val('m-thigh'),
+      };
+
+      const hasData = Object.values(data).slice(1).some(v => v !== null);
+      if (!hasData) {
+        tg.showAlert('Заполни хотя бы одно поле.');
+        return;
+      }
+
+      await api.post('/api/measurements', data);
+
+      // Clear inputs
+      ['m-weight','m-fat','m-chest','m-waist','m-hips','m-biceps','m-thigh']
+        .forEach(id => document.getElementById(id).value = '');
+      document.getElementById('m-date').value = localToday();
+
+      tg.showAlert('Замер сохранён!');
+      await load();
+    }
+
+    async function deleteMeasurement(id) {
+      tg.showConfirm('Удалить замер?', async (confirmed) => {
+        if (!confirmed) return;
+        await api.delete(`/api/measurements/${id}`);
+        measurements = measurements.filter(m => String(m.id) !== String(id));
+        render();
+      });
+    }
+
+    load().catch(err => {
+      document.getElementById('history').innerHTML =
+        `<div class="empty" style="color:#e53e3e">Ошибка: ${err.message}</div>`;
+    });
   </script>
 </body>
 </html>

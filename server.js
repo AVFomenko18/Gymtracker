@@ -5,6 +5,7 @@ const authMiddleware = require('./src/middleware/verifyTelegram');
 const meRouter = require('./src/routes/me');
 const exercisesRouter = require('./src/routes/exercises');
 const workoutsRouter = require('./src/routes/workouts');
+const measurementsRouter = require('./src/routes/measurements');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +20,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/me', authMiddleware, meRouter);
 app.use('/api/exercises', authMiddleware, exercisesRouter);
 app.use('/api/workouts', authMiddleware, workoutsRouter);
+app.use('/api/measurements', authMiddleware, measurementsRouter);
 
 // Global error handler
 app.use((err, req, res, next) => {
