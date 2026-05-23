@@ -85,6 +85,16 @@
     }
 
     .page-with-bar { padding-bottom: 100px; }
+
+    /* Collapse chevron */
+    .collapse-btn {
+      background: none; border: none; cursor: pointer;
+      padding: 0 2px; font-size: 18px; opacity: 0.45;
+      color: var(--tg-theme-text-color, #000);
+      line-height: 1; flex-shrink: 0; margin-left: 6px;
+    }
+    .chevron { display: inline-block; transition: transform 0.2s; }
+    .chevron.closed { transform: rotate(-90deg); }
   </style>
 </head>
 <body>
@@ -129,6 +139,14 @@
     let supersets = []; // [{id, workout_id, exercise_id_1, exercise_id_2}]
     let selectMode = false;
     let selectedExercises = new Set(); // Set of exercise_id strings
+    let collapsedExercises = new Set(); // Set of exercise_id strings
+
+    function toggleSetsCollapse(exerciseId) {
+      const key = String(exerciseId);
+      if (collapsedExercises.has(key)) collapsedExercises.delete(key);
+      else collapsedExercises.add(key);
+      render();
+    }
 
     const params = new URLSearchParams(location.search);
     const existingId = params.get('id');
@@ -251,6 +269,7 @@
 
         const isFirstOfPair = inSuperset && i + 1 < ordered.length && String(ordered[i+1].exercise_id) === ssInfo.partnerId;
         const isSecondOfPair = inSuperset && i > 0 && String(ordered[i-1].exercise_id) === ssInfo.partnerId;
+        const isCollapsed = collapsedExercises.has(exId);
 
         if (isFirstOfPair) html += `<div class="superset-group">`;
 
@@ -272,29 +291,32 @@
             </div>` : ''}
             <span class="exercise-name" style="${selectMode?'margin-left:8px':''}">${g.exercise_name}</span>
             <span class="tonnage-badge">${exTonnage.toFixed(1)} кг</span>
+            ${!selectMode ? `<button class="collapse-btn" onclick="event.stopPropagation();toggleSetsCollapse('${exId}')"><span class="chevron${isCollapsed?' closed':''}">▾</span></button>` : ''}
           </div>
-          <div class="muscle-tag" style="margin-bottom:6px">${g.muscle_group || ''}</div>`;
+          ${!isCollapsed ? `<div class="muscle-tag" style="margin-bottom:6px">${g.muscle_group || ''}</div>` : ''}`;
 
-        const realSets = g.sets.filter(s => !s._placeholder);
-        for (let j = 0; j < realSets.length; j++) {
-          const s = realSets[j];
-          const t = (parseFloat(s.weight) * parseInt(s.reps)).toFixed(1);
-          html += `<div class="set-row">
-            <span class="set-num">${j+1}</span>
-            <div class="set-info">
-              ${s.weight} кг × ${s.reps} повт
-              <div class="set-tonnage">${t} кг тоннаж</div>
-            </div>
-            ${!selectMode ? `<button class="btn-danger" onclick="deleteSet('${s.id}','${exId}')">×</button>` : ''}
-          </div>`;
-        }
+        if (!isCollapsed) {
+          const realSets = g.sets.filter(s => !s._placeholder);
+          for (let j = 0; j < realSets.length; j++) {
+            const s = realSets[j];
+            const t = (parseFloat(s.weight) * parseInt(s.reps)).toFixed(1);
+            html += `<div class="set-row">
+              <span class="set-num">${j+1}</span>
+              <div class="set-info">
+                ${s.weight} кг × ${s.reps} повт
+                <div class="set-tonnage">${t} кг тоннаж</div>
+              </div>
+              ${!selectMode ? `<button class="btn-danger" onclick="deleteSet('${s.id}','${exId}')">×</button>` : ''}
+            </div>`;
+          }
 
-        if (!selectMode) {
-          html += `<div class="input-row" id="input-${exId}">
-            <input class="input-field" type="number" placeholder="Вес" id="w-${exId}" min="0" step="0.5" style="min-width:0">
-            <input class="input-field" type="number" placeholder="Повт" id="r-${exId}" min="1" step="1" style="min-width:0">
-            <button class="btn-add" onclick="addSet('${exId}')">+</button>
-          </div>`;
+          if (!selectMode) {
+            html += `<div class="input-row" id="input-${exId}">
+              <input class="input-field" type="number" placeholder="Вес" id="w-${exId}" min="0" step="0.5" style="min-width:0">
+              <input class="input-field" type="number" placeholder="Повт" id="r-${exId}" min="1" step="1" style="min-width:0">
+              <button class="btn-add" onclick="addSet('${exId}')">+</button>
+            </div>`;
+          }
         }
 
         html += `</div>`;
@@ -303,10 +325,14 @@
       }
 
       if (!selectMode) {
+        const copyBtn = existingId ? `<button class="btn-outline" onclick="copyWorkoutToToday()" style="width:100%;justify-content:center;margin-top:8px">
+            📋 Скопировать на сегодня
+          </button>` : '';
         html += `<div class="card">
           <button class="btn-primary" onclick="goToExercisePicker()" style="margin-bottom:0">
             + Выбрать упражнение
           </button>
+          ${copyBtn}
         </div>`;
       }
 
@@ -355,6 +381,29 @@
       await api.delete(`/api/workouts/${workoutId}/supersets/${supersetId}`);
       supersets = supersets.filter(ss => String(ss.id) !== String(supersetId));
       render();
+    }
+
+    async function copyWorkoutToToday() {
+      const today = localToday();
+      const currentDate = document.getElementById('workout-date-input').value;
+      if (currentDate === today) {
+        tg.showAlert('Эта тренировка уже на сегодня');
+        return;
+      }
+      const realSets = sets.filter(s => !s._placeholder);
+      if (!realSets.length) {
+        tg.showAlert('Нет подходов для копирования');
+        return;
+      }
+      const newWorkout = await api.post('/api/workouts', { date: today });
+      for (const s of realSets) {
+        await api.post(`/api/workouts/${newWorkout.id}/sets`, {
+          exercise_id: s.exercise_id,
+          weight: s.weight,
+          reps: s.reps,
+        });
+      }
+      location.href = `/workout.html?id=${newWorkout.id}`;
     }
 
     function goToExercisePicker() {
