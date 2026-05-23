@@ -17,7 +17,7 @@
     </div>
 
     <div class="nav-grid">
-      <button class="nav-card" onclick="location.href='/workout.html'">
+      <button class="nav-card" id="workout-btn" onclick="goToTodayWorkout()">
         <span class="nav-emoji">🏋️</span>
         <span class="nav-label">Тренировка</span>
       </button>
@@ -45,6 +45,28 @@
     const tg = window.Telegram.WebApp;
     tg.ready();
     tg.expand();
+
+    function localToday() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    async function goToTodayWorkout() {
+      const btn = document.getElementById('workout-btn');
+      btn.style.opacity = '0.5';
+      try {
+        const workouts = await api.get('/api/workouts');
+        const today = localToday();
+        const todayWorkout = workouts.find(w => String(w.date).slice(0, 10) === today);
+        if (todayWorkout) {
+          location.href = `/workout.html?id=${todayWorkout.id}`;
+        } else {
+          location.href = '/workout.html';
+        }
+      } catch {
+        location.href = '/workout.html';
+      }
+    }
 
     const user = tg.initDataUnsafe?.user;
     if (user) {
