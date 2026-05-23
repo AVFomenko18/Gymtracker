@@ -44,7 +44,7 @@
 </head>
 <body>
   <div class="header">
-    <button onclick="history.back()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    <button onclick="location.href='/'" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
     📏 Замеры тела
   </div>
 
@@ -100,7 +100,7 @@
     const tg = window.Telegram.WebApp;
     tg.ready(); tg.expand();
     tg.BackButton.show();
-    tg.BackButton.onClick(() => history.back());
+    tg.BackButton.onClick(() => location.href = '/');
 
     function localToday() {
       const d = new Date();
