@@ -1,8 +1,9 @@
-const CACHE = 'gymtracker-v2';
+const CACHE = 'gymtracker-v3';
 const STATIC = [
   '/',
   '/index.html',
   '/login.html',
+  '/profile.html',
   '/workout.html',
   '/exercises.html',
   '/history.html',

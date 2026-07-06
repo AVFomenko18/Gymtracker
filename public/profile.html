@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <title>Профиль</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .avatar-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 24px 0 16px;
+    }
+    .avatar-circle {
+      width: 96px; height: 96px; border-radius: 50%;
+      background: #2481cc; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px; font-weight: 700; overflow: hidden;
+      position: relative; cursor: pointer;
+    }
+    .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar-edit-hint {
+      font-size: 13px; opacity: 0.5; margin-top: 8px; cursor: pointer;
+    }
+
+    .field-label { font-size: 13px; opacity: 0.6; margin-bottom: 5px; display: block; }
+    .field-wrap { margin-bottom: 14px; }
+    .field-input {
+      width: 100%; padding: 13px 16px; border-radius: 12px; font-size: 16px;
+      border: 1.5px solid #e0e0e0; background: #f5f5f5; color: #000;
+      box-sizing: border-box;
+    }
+    .field-input:focus { outline: none; border-color: #2481cc; background: #fff; }
+    .field-readonly {
+      width: 100%; padding: 13px 16px; border-radius: 12px; font-size: 16px;
+      background: #f5f5f5; color: #888; box-sizing: border-box;
+    }
+
+    .btn-save {
+      width: 100%; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 700;
+      background: #2481cc; color: #fff; border: none; cursor: pointer; margin-bottom: 12px;
+    }
+    .btn-logout {
+      width: 100%; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 600;
+      background: none; color: #e53e3e; border: 1.5px solid #e53e3e; cursor: pointer;
+    }
+    .success-msg { color: #38a169; font-size: 14px; text-align: center; min-height: 20px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <button onclick="location.href='/'" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    Профиль
+  </div>
+
+  <div class="page">
+    <!-- Avatar -->
+    <div class="avatar-wrap">
+      <div class="avatar-circle" id="avatar-circle" onclick="document.getElementById('avatar-input').click()">
+        <span id="avatar-initial"></span>
+      </div>
+      <span class="avatar-edit-hint" onclick="document.getElementById('avatar-input').click()">Сменить фото</span>
+      <input type="file" id="avatar-input" accept="image/*" style="display:none" onchange="handleAvatar(this)">
+    </div>
+
+    <!-- Info -->
+    <div class="card">
+      <div class="field-wrap">
+        <label class="field-label">Имя</label>
+        <input class="field-input" type="text" id="name-input" placeholder="Твоё имя">
+      </div>
+      <div class="field-wrap">
+        <label class="field-label">Логин</label>
+        <div class="field-readonly" id="username-display"></div>
+      </div>
+      <div class="success-msg" id="success-msg"></div>
+      <button class="btn-save" onclick="saveName()">Сохранить</button>
+    </div>
+
+    <!-- Logout -->
+    <div class="card">
+      <button class="btn-logout" onclick="logout()">Выйти из аккаунта</button>
+    </div>
+  </div>
+
+  <script src="/js/api.js?v=9"></script>
+  <script>
+    if (!localStorage.getItem('gymToken')) { location.href = '/login.html'; }
+
+    const name = localStorage.getItem('gymName') || '';
+    const username = localStorage.getItem('gymUsername') || '';
+    const avatar = localStorage.getItem('gymAvatar') || '';
+
+    document.getElementById('name-input').value = name;
+    document.getElementById('username-display').textContent = username;
+    setAvatar(avatar, name);
+
+    function setAvatar(data, displayName) {
+      const circle = document.getElementById('avatar-circle');
+      const initial = document.getElementById('avatar-initial');
+      if (data) {
+        circle.innerHTML = `<img src="${data}" alt="">`;
+      } else {
+        circle.innerHTML = `<span id="avatar-initial" style="font-size:40px;font-weight:700;color:#fff">${(displayName || '?')[0].toUpperCase()}</span>`;
+      }
+    }
+
+    function handleAvatar(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        // Resize to 200x200 via canvas
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 200; canvas.height = 200;
+          const ctx = canvas.getContext('2d');
+          // Crop center square
+          const size = Math.min(img.width, img.height);
+          const sx = (img.width - size) / 2;
+          const sy = (img.height - size) / 2;
+          ctx.drawImage(img, sx, sy, size, size, 0, 0, 200, 200);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          setAvatar(dataUrl, localStorage.getItem('gymName'));
+          await api.put('/api/me/avatar', { avatar_data: dataUrl });
+          localStorage.setItem('gymAvatar', dataUrl);
+          showSuccess('Фото обновлено');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function saveName() {
+      const newName = document.getElementById('name-input').value.trim();
+      if (!newName) return;
+      await api.put('/api/me', { name: newName });
+      localStorage.setItem('gymName', newName);
+      showSuccess('Сохранено');
+    }
+
+    function logout() {
+      if (!confirm('Выйти из аккаунта?')) return;
+      localStorage.removeItem('gymToken');
+      localStorage.removeItem('gymName');
+      localStorage.removeItem('gymUsername');
+      localStorage.removeItem('gymAvatar');
+      location.href = '/login.html';
+    }
+
+    function showSuccess(msg) {
+      const el = document.getElementById('success-msg');
+      el.textContent = msg;
+      setTimeout(() => el.textContent = '', 2500);
+    }
+  </script>
+</body>
+</html>

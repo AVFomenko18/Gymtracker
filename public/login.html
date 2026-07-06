@@ -12,95 +12,142 @@
   <link rel="stylesheet" href="/css/style.css">
   <style>
     body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .login-wrap {
-      width: 100%; max-width: 360px; padding: 0 24px;
-      display: flex; flex-direction: column; align-items: center; gap: 0;
+    .login-wrap { width: 100%; max-width: 380px; padding: 0 24px; }
+
+    .login-logo { text-align: center; margin-bottom: 24px; }
+    .login-logo-icon { font-size: 64px; display: block; margin-bottom: 8px; }
+    .login-logo-title { font-size: 24px; font-weight: 700; }
+
+    .tabs { display: flex; background: #f0f0f0; border-radius: 12px; padding: 4px; margin-bottom: 24px; }
+    .tab {
+      flex: 1; padding: 10px; text-align: center; font-size: 15px; font-weight: 600;
+      border: none; background: none; border-radius: 9px; cursor: pointer;
+      color: #888; transition: all 0.15s;
     }
-    .login-icon { font-size: 72px; margin-bottom: 16px; }
-    .login-title { font-size: 24px; font-weight: 700; margin-bottom: 6px; text-align: center; }
-    .login-sub { font-size: 14px; opacity: 0.5; margin-bottom: 32px; text-align: center; }
-    .login-label { width: 100%; font-size: 13px; opacity: 0.6; margin-bottom: 6px; }
-    .login-input {
-      width: 100%; padding: 14px 16px; border-radius: 12px; font-size: 17px;
+    .tab.active { background: #fff; color: #000; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+
+    .form-section { display: none; }
+    .form-section.active { display: block; }
+
+    .field-label { font-size: 13px; opacity: 0.6; margin-bottom: 5px; display: block; }
+    .field-wrap { margin-bottom: 12px; }
+    .field-input {
+      width: 100%; padding: 14px 16px; border-radius: 12px; font-size: 16px;
       border: 1.5px solid #e0e0e0; background: #f5f5f5; color: #000;
-      margin-bottom: 12px; box-sizing: border-box; text-align: center;
-      letter-spacing: 4px;
+      box-sizing: border-box;
     }
-    .login-input:focus { outline: none; border-color: #2481cc; }
-    .login-input.name-input { letter-spacing: 0; text-align: left; }
-    .login-btn {
-      width: 100%; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 700;
+    .field-input:focus { outline: none; border-color: #2481cc; background: #fff; }
+
+    .btn-submit {
+      width: 100%; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 700;
       background: #2481cc; color: #fff; border: none; cursor: pointer; margin-top: 4px;
     }
-    .login-btn:active { opacity: 0.8; }
-    .login-error { color: #e53e3e; font-size: 14px; margin-top: 10px; min-height: 20px; text-align: center; }
-    .name-section { width: 100%; display: none; }
+    .btn-submit:active { opacity: 0.85; }
+    .error-msg { color: #e53e3e; font-size: 14px; margin-top: 10px; text-align: center; min-height: 20px; }
   </style>
 </head>
 <body>
   <div class="login-wrap">
-    <div class="login-icon">💪</div>
-    <div class="login-title">Gym Tracker</div>
-    <div class="login-sub">Введи PIN для входа</div>
-
-    <div id="name-section" class="name-section">
-      <div class="login-label">Твоё имя (первый вход)</div>
-      <input class="login-input name-input" type="text" id="name-input" placeholder="Например: Александр" maxlength="30">
+    <div class="login-logo">
+      <span class="login-logo-icon">💪</span>
+      <span class="login-logo-title">Gym Tracker</span>
     </div>
 
-    <div class="login-label">PIN-код</div>
-    <input class="login-input" type="password" inputmode="numeric" id="pin-input" placeholder="••••" maxlength="10" onkeydown="if(event.key==='Enter') login()">
-    <button class="login-btn" onclick="login()">Войти</button>
-    <div class="login-error" id="error-msg"></div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('login')">Войти</button>
+      <button class="tab" onclick="switchTab('register')">Регистрация</button>
+    </div>
+
+    <!-- Login -->
+    <div class="form-section active" id="section-login">
+      <div class="field-wrap">
+        <label class="field-label">Логин</label>
+        <input class="field-input" type="text" id="l-username" placeholder="your_login" autocomplete="username" autocapitalize="none">
+      </div>
+      <div class="field-wrap">
+        <label class="field-label">Пароль</label>
+        <input class="field-input" type="password" id="l-password" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter') submit('login')">
+      </div>
+      <button class="btn-submit" onclick="submit('login')">Войти</button>
+      <div class="error-msg" id="error-login"></div>
+    </div>
+
+    <!-- Register -->
+    <div class="form-section" id="section-register">
+      <div class="field-wrap">
+        <label class="field-label">Имя</label>
+        <input class="field-input" type="text" id="r-name" placeholder="Александр" autocomplete="name">
+      </div>
+      <div class="field-wrap">
+        <label class="field-label">Логин (только латиница, мин. 3 символа)</label>
+        <input class="field-input" type="text" id="r-username" placeholder="alex123" autocomplete="username" autocapitalize="none">
+      </div>
+      <div class="field-wrap">
+        <label class="field-label">Пароль (мин. 4 символа)</label>
+        <input class="field-input" type="password" id="r-password" placeholder="••••••" autocomplete="new-password" onkeydown="if(event.key==='Enter') submit('register')">
+      </div>
+      <button class="btn-submit" onclick="submit('register')">Создать аккаунт</button>
+      <div class="error-msg" id="error-register"></div>
+    </div>
   </div>
 
   <script>
-    // Already logged in?
     if (localStorage.getItem('gymToken')) location.href = '/';
 
-    let isFirstTime = false;
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach((el, i) => {
+        el.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'));
+      });
+      document.getElementById('section-login').classList.toggle('active', tab === 'login');
+      document.getElementById('section-register').classList.toggle('active', tab === 'register');
+    }
 
-    // Check if first time setup needed
-    fetch('/api/health').then(() =>
-      fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '__check__' }) })
-    ).then(r => r.json()).then(data => {
-      // If error is 'Неверный PIN' → user exists, just need PIN
-      // We show name field only when we can't find a user (first time)
-    });
+    async function submit(mode) {
+      const errEl = document.getElementById(`error-${mode}`);
+      errEl.textContent = '';
 
-    async function login() {
-      const pin = document.getElementById('pin-input').value.trim();
-      const name = document.getElementById('name-input').value.trim();
-      const errorEl = document.getElementById('error-msg');
-      errorEl.textContent = '';
+      let body, url;
+      if (mode === 'login') {
+        body = {
+          username: document.getElementById('l-username').value.trim(),
+          password: document.getElementById('l-password').value,
+        };
+        url = '/api/auth/login';
+      } else {
+        body = {
+          name: document.getElementById('r-name').value.trim(),
+          username: document.getElementById('r-username').value.trim(),
+          password: document.getElementById('r-password').value,
+        };
+        url = '/api/auth/register';
+      }
 
-      if (!pin) { errorEl.textContent = 'Введи PIN'; return; }
-
-      const btn = document.querySelector('.login-btn');
+      const btn = document.querySelector(`#section-${mode} .btn-submit`);
       btn.textContent = '...'; btn.disabled = true;
 
       try {
-        const res = await fetch('/api/auth/login', {
+        const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin, name }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) {
-          if (res.status === 401) {
-            errorEl.textContent = 'Неверный PIN';
-          } else {
-            errorEl.textContent = data.error || 'Ошибка';
-          }
-          btn.textContent = 'Войти'; btn.disabled = false;
+          errEl.textContent = data.error || 'Ошибка';
+          btn.textContent = mode === 'login' ? 'Войти' : 'Создать аккаунт';
+          btn.disabled = false;
           return;
         }
         localStorage.setItem('gymToken', data.token);
-        localStorage.setItem('gymName', data.name || 'Пользователь');
+        localStorage.setItem('gymName', data.name);
+        localStorage.setItem('gymUsername', data.username);
+        if (data.avatar_data) localStorage.setItem('gymAvatar', data.avatar_data);
+        else localStorage.removeItem('gymAvatar');
         location.href = '/';
-      } catch (e) {
-        errorEl.textContent = 'Ошибка соединения';
-        btn.textContent = 'Войти'; btn.disabled = false;
+      } catch {
+        errEl.textContent = 'Ошибка соединения';
+        btn.textContent = mode === 'login' ? 'Войти' : 'Создать аккаунт';
+        btn.disabled = false;
       }
     }
   </script>

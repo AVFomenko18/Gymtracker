@@ -5,13 +5,27 @@ const pool = require('../db');
 router.get('/', (req, res) => {
   res.json({
     id: req.dbUser.id,
-    telegram_user_id: req.dbUser.telegram_user_id,
-    first_name: req.dbUser.first_name,
-    last_name: req.dbUser.last_name,
+    name: req.dbUser.name,
     username: req.dbUser.username,
+    avatar_data: req.dbUser.avatar_data,
     goals: req.dbUser.goals_json,
-    created_at: req.dbUser.created_at,
   });
+});
+
+router.put('/', async (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Имя не может быть пустым' });
+  const result = await pool.query(
+    `UPDATE users SET name = $1 WHERE id = $2 RETURNING name, username, avatar_data, goals_json`,
+    [name.trim(), req.dbUser.id]
+  );
+  res.json(result.rows[0]);
+});
+
+router.put('/avatar', async (req, res) => {
+  const { avatar_data } = req.body;
+  await pool.query('UPDATE users SET avatar_data = $1 WHERE id = $2', [avatar_data, req.dbUser.id]);
+  res.json({ ok: true });
 });
 
 router.put('/goals', async (req, res) => {
