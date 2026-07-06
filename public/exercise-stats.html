@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
   <title>Статистика</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
   <style>
     .period-tabs {
@@ -67,13 +69,10 @@
     <div class="spinner">Загрузка...</div>
   </div>
 
-  <script src="/js/api.js?v=8"></script>
+  <script src="/js/api.js?v=9"></script>
   <script src="/js/cache.js"></script>
   <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready(); tg.expand();
-    tg.BackButton.show();
-    tg.BackButton.onClick(() => history.back());
+    if (!localStorage.getItem('gymToken')) { location.href = '/login.html'; }
 
     const params = new URLSearchParams(location.search);
     const exerciseId = params.get('id');

@@ -1,7 +1,8 @@
-const CACHE = 'gymtracker-v1';
+const CACHE = 'gymtracker-v2';
 const STATIC = [
   '/',
   '/index.html',
+  '/login.html',
   '/workout.html',
   '/exercises.html',
   '/history.html',
@@ -11,6 +12,10 @@ const STATIC = [
   '/css/style.css',
   '/js/api.js',
   '/js/cache.js',
+  '/manifest.json',
+  '/icons/icon.svg',
+  '/icons/icon-192.png',
+  '/icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', e => {

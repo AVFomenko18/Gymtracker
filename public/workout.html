@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
   <title>Тренировка</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
   <style>
     /* Selection mode */
@@ -100,6 +102,11 @@
       background: none; border: none; font-size: 15px; cursor: pointer;
       padding: 0 3px; opacity: 0.5; flex-shrink: 0;
     }
+    .superset-bar .btn-delete-ex {
+      flex: 1; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600;
+      background: #e53e3e; color: #fff; border: none; cursor: pointer;
+    }
+    .superset-bar .btn-delete-ex:disabled { opacity: 0.4; cursor: default; }
   </style>
 </head>
 <body>
@@ -121,18 +128,14 @@
   <!-- Superset action bar (shown in select mode) -->
   <div class="superset-bar" id="superset-bar" style="display:none">
     <button class="btn-cancel-sel" onclick="toggleSelectMode()">Отмена</button>
-    <button class="btn-superset" id="superset-btn" onclick="createSuperset()" disabled>
-      ⚡ Суперсет
-    </button>
+    <button class="btn-delete-ex" id="delete-ex-btn" onclick="deleteSelectedExercises()" disabled>🗑 Удалить</button>
+    <button class="btn-superset" id="superset-btn" onclick="createSuperset()" disabled>⚡ Суперсет</button>
   </div>
 
-  <script src="/js/api.js?v=8"></script>
+  <script src="/js/api.js?v=9"></script>
   <script src="/js/cache.js"></script>
   <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready(); tg.expand();
-    tg.BackButton.show();
-    tg.BackButton.onClick(() => goBack());
+    if (!localStorage.getItem('gymToken')) { location.href = '/login.html'; }
 
     function goBack() {
       if (selectMode) { toggleSelectMode(); return; }
@@ -173,6 +176,16 @@
         workoutId = w.id;
         supersets = [];
         setDateInput(w.date);
+      }
+
+      // Restore placeholders saved before navigating to exercise picker
+      const pendingRaw = sessionStorage.getItem('pendingExercises');
+      if (pendingRaw) {
+        sessionStorage.removeItem('pendingExercises');
+        const pendingIds = JSON.parse(pendingRaw);
+        for (const pid of pendingIds) {
+          if (!sets.some(s => String(s.exercise_id) === pid)) addExerciseById(pid);
+        }
       }
 
       render();
@@ -216,6 +229,7 @@
         selectedExercises.add(key);
       }
       document.getElementById('superset-btn').disabled = selectedExercises.size !== 2;
+      document.getElementById('delete-ex-btn').disabled = selectedExercises.size === 0;
       render();
     }
 
@@ -309,11 +323,10 @@
             </div>` : ''}
             <span style="font-size:18px;flex-shrink:0;margin-right:6px${selectMode?';margin-left:8px':''}">${muscleIcon(g.muscle_group)}</span>
             <span class="exercise-name">${g.exercise_name}</span>
-            ${!isCollapsed ? `<span class="tonnage-badge">${exTonnage.toFixed(1)} кг</span>` : ''}
             ${!selectMode ? `<button class="stats-btn" onclick="event.stopPropagation();location.href='/exercise-stats.html?id=${exId}&name=${encodeURIComponent(g.exercise_name)}'">📊</button>` : ''}
             ${!selectMode ? `<button class="collapse-btn" onclick="event.stopPropagation();toggleSetsCollapse('${exId}')"><span class="chevron${isCollapsed?' closed':''}">▾</span></button>` : ''}
           </div>
-          ${!isCollapsed ? `<div class="muscle-tag" style="margin-bottom:6px">${g.muscle_group || ''}</div>` : ''}`;
+          ${!isCollapsed && exTonnage > 0 ? `<div style="font-size:12px;opacity:0.5;margin-bottom:6px;padding:0 4px">${exTonnage.toFixed(1)} кг</div>` : ''}`;
 
         if (!isCollapsed) {
           const realSets = g.sets.filter(s => !s._placeholder);
@@ -384,6 +397,17 @@
       return result;
     }
 
+    async function deleteSelectedExercises() {
+      if (!selectedExercises.size) return;
+      if (!confirm('Удалить выбранные упражнения?')) return;
+      for (const exId of selectedExercises) {
+        const toDelete = sets.filter(s => String(s.exercise_id) === exId && !s._placeholder);
+        for (const s of toDelete) await api.delete(`/api/workouts/sets/${s.id}`);
+        sets = sets.filter(s => String(s.exercise_id) !== exId);
+      }
+      toggleSelectMode();
+    }
+
     async function createSuperset() {
       if (selectedExercises.size !== 2) return;
       const [id1, id2] = [...selectedExercises];
@@ -407,12 +431,12 @@
       const today = localToday();
       const currentDate = document.getElementById('workout-date-input').value;
       if (currentDate === today) {
-        tg.showAlert('Эта тренировка уже на сегодня');
+        alert('Эта тренировка уже на сегодня');
         return;
       }
       const realSets = sets.filter(s => !s._placeholder);
       if (!realSets.length) {
-        tg.showAlert('Нет подходов для копирования');
+        alert('Нет подходов для копирования');
         return;
       }
       const newWorkout = await api.post('/api/workouts', { date: today });
@@ -427,6 +451,8 @@
     }
 
     function goToExercisePicker() {
+      const placeholders = sets.filter(s => s._placeholder).map(s => String(s.exercise_id));
+      if (placeholders.length) sessionStorage.setItem('pendingExercises', JSON.stringify(placeholders));
       location.href = `/exercises.html?mode=select&workoutId=${workoutId}`;
     }
 
@@ -452,6 +478,7 @@
       const weight = parseFloat(wInput.value);
       const reps = parseInt(rInput.value);
       if (!weight || !reps || weight <= 0 || reps <= 0) { wInput.focus(); return; }
+
 
       const newSet = await api.post(`/api/workouts/${workoutId}/sets`, { exercise_id: exerciseId, weight, reps });
       const ex = exercises.find(e => String(e.id) === String(exerciseId));

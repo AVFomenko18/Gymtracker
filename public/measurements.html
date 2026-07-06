@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
   <title>Замеры</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
   <style>
     .form-card { background: var(--tg-theme-secondary-bg-color,#f5f5f5); border-radius:14px; padding:16px; margin-bottom:14px; }
@@ -95,13 +97,10 @@
     <div id="history"><div class="spinner">Загрузка...</div></div>
   </div>
 
-  <script src="/js/api.js?v=5"></script>
+  <script src="/js/api.js?v=9"></script>
   <script src="/js/cache.js"></script>
   <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready(); tg.expand();
-    tg.BackButton.show();
-    tg.BackButton.onClick(() => location.href = '/');
+    if (!localStorage.getItem('gymToken')) { location.href = '/login.html'; }
 
     function localToday() {
       const d = new Date();
@@ -181,7 +180,7 @@
 
       const hasData = Object.values(data).slice(1).some(v => v !== null);
       if (!hasData) {
-        tg.showAlert('Заполни хотя бы одно поле.');
+        alert('Заполни хотя бы одно поле.');
         return;
       }
 
@@ -193,18 +192,16 @@
         .forEach(id => document.getElementById(id).value = '');
       document.getElementById('m-date').value = localToday();
 
-      tg.showAlert('Замер сохранён!');
+      alert('Замер сохранён!');
       await load();
     }
 
     async function deleteMeasurement(id) {
-      tg.showConfirm('Удалить замер?', async (confirmed) => {
-        if (!confirmed) return;
-        await api.delete(`/api/measurements/${id}`);
-        measurements = measurements.filter(m => String(m.id) !== String(id));
-        dataCache.set('measurements', measurements);
-        render();
-      });
+      if (!confirm('Удалить замер?')) return;
+      await api.delete(`/api/measurements/${id}`);
+      measurements = measurements.filter(m => String(m.id) !== String(id));
+      dataCache.set('measurements', measurements);
+      render();
     }
 
     load().catch(err => {

@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
   <title>Питание</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
   <style>
     .summary-card {
@@ -112,13 +114,10 @@
     <div class="form-card" id="goals-form"></div>
   </div>
 
-  <script src="/js/api.js?v=5"></script>
+  <script src="/js/api.js?v=9"></script>
   <script src="/js/cache.js"></script>
   <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready(); tg.expand();
-    tg.BackButton.show();
-    tg.BackButton.onClick(() => location.href = '/');
+    if (!localStorage.getItem('gymToken')) { location.href = '/login.html'; }
 
     function localToday() {
       const d = new Date();
@@ -248,7 +247,7 @@
 
     async function addMeal() {
       const name = document.getElementById('meal-name').value.trim();
-      if (!name) { tg.showAlert('Введи название блюда'); return; }
+      if (!name) { alert('Введи название блюда'); return; }
 
       const [y,mo,d] = currentDate.split('-').map(Number);
       const eaten_at = new Date(y,mo-1,d,12,0,0).toISOString();
@@ -285,7 +284,7 @@
         carbs:    parseInt(document.getElementById('g-carbs').value)||250,
       };
       await api.put('/api/me/goals', goals);
-      tg.showAlert('Цели сохранены!');
+      alert('Цели сохранены!');
       renderSummary();
     }
 

@@ -1,13 +1,19 @@
 async function apiRequest(method, url, body) {
+  const token = localStorage.getItem('gymToken') || '';
   const res = await fetch(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': window.Telegram?.WebApp?.initData || '',
-      'ngrok-skip-browser-warning': '1',
+      'Authorization': 'Bearer ' + token,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401) {
+    localStorage.removeItem('gymToken');
+    localStorage.removeItem('gymName');
+    location.href = '/login.html';
+    return;
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `HTTP ${res.status}`);

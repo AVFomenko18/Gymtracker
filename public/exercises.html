@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
   <title>Упражнения</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/style.css">
   <style>
     .search-wrap {
@@ -124,11 +126,10 @@
     </div>
   </div>
 
-  <script src="/js/api.js?v=5"></script>
+  <script src="/js/api.js?v=9"></script>
   <script src="/js/cache.js"></script>
   <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready(); tg.expand();
+    if (!localStorage.getItem('gymToken')) { location.href = '/login.html'; }
 
     const params = new URLSearchParams(location.search);
     const selectMode = params.get('mode') === 'select'; // selecting for workout
@@ -136,9 +137,6 @@
 
     document.getElementById('page-title').textContent = selectMode ? 'Выбрать упражнение' : 'Упражнения';
 
-    // Back button behaviour
-    tg.BackButton.show();
-    tg.BackButton.onClick(() => goBack());
     document.getElementById('back-btn').onclick = goBack;
 
     function goBack() {
@@ -257,7 +255,7 @@
 
     async function saveExercise() {
       const name = document.getElementById('ex-name-input').value.trim();
-      if (!name) { tg.showAlert('Введи название'); return; }
+      if (!name) { alert('Введи название'); return; }
 
       if (editingId) {
         // Update — delete old and create new (simplest approach)
@@ -273,13 +271,14 @@
     }
 
     async function deleteExercise(id, name) {
-      tg.showConfirm(`Удалить упражнение "${name}"?`, async (confirmed) => {
+      const confirmed = confirm(`Удалить упражнение "${name}"?`);
+      (async (confirmed) => {
         if (!confirmed) return;
         await api.delete(`/api/exercises/${id}`);
         exercises = exercises.filter(e => String(e.id) !== String(id));
         dataCache.set('exercises', exercises);
         renderList();
-      });
+      })(confirmed);
     }
 
     load().catch(err => {
