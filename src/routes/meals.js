@@ -4,7 +4,8 @@ const pool = require('../db');
 
 // Get meals for a date (default today)
 router.get('/', async (req, res) => {
-  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const raw = req.query.date;
+  const date = (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) ? raw : new Date().toISOString().slice(0, 10);
   const result = await pool.query(
     `SELECT * FROM meals
      WHERE user_id = $1 AND eaten_at::date = $2

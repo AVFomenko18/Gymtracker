@@ -60,7 +60,12 @@ router.post('/:id/supersets', async (req, res) => {
   if (!exercise_id_1 || !exercise_id_2) {
     return res.status(400).json({ error: 'exercise_id_1 and exercise_id_2 required' });
   }
-  // Remove existing superset involving either exercise in this workout
+  const own = await pool.query(
+    `SELECT id FROM workouts WHERE id = $1 AND user_id = $2`,
+    [req.params.id, req.dbUser.id]
+  );
+  if (!own.rows.length) return res.status(404).json({ error: 'Workout not found' });
+
   await pool.query(
     `DELETE FROM supersets WHERE workout_id = $1
      AND (exercise_id_1 IN ($2,$3) OR exercise_id_2 IN ($2,$3))`,
@@ -77,8 +82,9 @@ router.post('/:id/supersets', async (req, res) => {
 // Delete superset
 router.delete('/:id/supersets/:supersetId', async (req, res) => {
   await pool.query(
-    `DELETE FROM supersets WHERE id = $1 AND workout_id = $2`,
-    [req.params.supersetId, req.params.id]
+    `DELETE FROM supersets WHERE id = $1 AND workout_id = $2
+     AND workout_id IN (SELECT id FROM workouts WHERE user_id = $3)`,
+    [req.params.supersetId, req.params.id, req.dbUser.id]
   );
   res.json({ ok: true });
 });

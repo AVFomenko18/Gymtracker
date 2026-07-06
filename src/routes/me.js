@@ -24,6 +24,9 @@ router.put('/', async (req, res) => {
 
 router.put('/avatar', async (req, res) => {
   const { avatar_data } = req.body;
+  if (avatar_data && avatar_data.length > 300000) {
+    return res.status(400).json({ error: 'Изображение слишком большое (макс 200КБ)' });
+  }
   await pool.query('UPDATE users SET avatar_data = $1 WHERE id = $2', [avatar_data, req.dbUser.id]);
   res.json({ ok: true });
 });

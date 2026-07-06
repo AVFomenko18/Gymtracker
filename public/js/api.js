@@ -9,8 +9,7 @@ async function apiRequest(method, url, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (res.status === 401) {
-    localStorage.removeItem('gymToken');
-    localStorage.removeItem('gymName');
+    ['gymToken','gymName','gymUsername','gymAvatar'].forEach(k => localStorage.removeItem(k));
     location.href = '/login.html';
     return;
   }
