@@ -47,8 +47,10 @@
     }
     .ex-actions { display: flex; gap: 2px; }
     .btn-icon {
-      background: none; border: none; font-size: 17px; cursor: pointer;
-      padding: 4px 6px; opacity: 0.6; border-radius: 6px;
+      background: none; border: none; font-size: 19px; cursor: pointer;
+      padding: 10px 10px; opacity: 0.6; border-radius: 8px;
+      min-width: 44px; min-height: 44px;
+      display: flex; align-items: center; justify-content: center;
     }
     .btn-icon:active { opacity: 1; background: var(--tg-theme-secondary-bg-color, #f0f0f0); }
 
@@ -101,9 +103,9 @@
 </head>
 <body>
   <div class="header">
-    <button id="back-btn" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    <button id="back-btn" class="btn-back">←</button>
     <span id="page-title">Упражнения</span>
-    <button onclick="openModal()" style="background:none;border:none;font-size:24px;cursor:pointer;padding:0 0 0 auto;margin-left:auto;color:var(--tg-theme-button-color,#2481cc)">+</button>
+    <button onclick="openModal()" class="btn-header-icon" style="margin-left:auto">+</button>
   </div>
 
   <div class="search-wrap">

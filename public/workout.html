@@ -12,9 +12,10 @@
     /* Selection mode */
     .select-btn {
       background: none; border: none;
-      font-size: 13px; font-weight: 600;
+      font-size: 15px; font-weight: 600;
       color: var(--tg-theme-button-color, #2481cc);
-      cursor: pointer; padding: 0; margin-left: 10px; flex-shrink: 0;
+      cursor: pointer; padding: 10px 4px; margin-left: 6px; flex-shrink: 0;
+      min-height: 44px;
     }
 
     .exercise-block { position: relative; transition: outline 0.15s; }
@@ -60,8 +61,10 @@
       opacity: 0.9; text-transform: uppercase;
     }
     .superset-remove {
-      background: none; border: none; font-size: 16px;
-      color: var(--tg-theme-hint-color, #999); cursor: pointer; padding: 2px 6px;
+      background: none; border: none; font-size: 18px;
+      color: var(--tg-theme-hint-color, #999); cursor: pointer;
+      padding: 8px 12px; min-height: 44px;
+      display: flex; align-items: center;
     }
 
     /* Sticky superset action bar */
@@ -91,16 +94,18 @@
     /* Collapse chevron */
     .collapse-btn {
       background: none; border: none; cursor: pointer;
-      padding: 0 2px; font-size: 18px; opacity: 0.45;
+      padding: 8px 6px; font-size: 20px; opacity: 0.45;
       color: var(--tg-theme-text-color, #000);
-      line-height: 1; flex-shrink: 0; margin-left: 6px;
+      line-height: 1; flex-shrink: 0;
+      min-height: 44px; display: flex; align-items: center;
     }
     .chevron { display: inline-block; transition: transform 0.2s; }
     .chevron.closed { transform: rotate(-90deg); }
 
     .stats-btn {
-      background: none; border: none; font-size: 15px; cursor: pointer;
-      padding: 0 3px; opacity: 0.5; flex-shrink: 0;
+      background: none; border: none; font-size: 17px; cursor: pointer;
+      padding: 8px 6px; opacity: 0.5; flex-shrink: 0;
+      min-height: 44px; display: flex; align-items: center;
     }
     .superset-bar .btn-delete-ex {
       flex: 1; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600;
@@ -111,7 +116,7 @@
 </head>
 <body>
   <div class="header">
-    <button onclick="goBack()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0">←</button>
+    <button onclick="goBack()" class="btn-back">←</button>
     🏋️ Тренировка
     <input type="date" id="workout-date-input"
       style="margin-left:auto;border:none;background:transparent;font-size:13px;color:var(--tg-theme-hint-color,#999);cursor:pointer;outline:none;text-align:right;max-width:110px"
