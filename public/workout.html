@@ -166,17 +166,24 @@
     const addExerciseId = params.get('addExercise');
 
     async function init() {
-      exercises = await api.get('/api/exercises');
-
       if (existingId) {
+        // Fetch exercises + workout data in parallel — cuts load time in half
+        const [exList, w] = await Promise.all([
+          api.get('/api/exercises'),
+          api.get(`/api/workouts/${existingId}`),
+        ]);
+        exercises = exList;
         workoutId = existingId;
-        const w = await api.get(`/api/workouts/${workoutId}`);
         sets = w.sets || [];
         supersets = w.supersets || [];
         setDateInput(w.date);
       } else {
         const today = localToday();
-        const w = await api.post('/api/workouts', { date: today });
+        const [exList, w] = await Promise.all([
+          api.get('/api/exercises'),
+          api.post('/api/workouts', { date: today }),
+        ]);
+        exercises = exList;
         workoutId = w.id;
         supersets = [];
         setDateInput(w.date);

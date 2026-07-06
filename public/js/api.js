@@ -10,6 +10,7 @@ async function apiRequest(method, url, body) {
   });
   if (res.status === 401) {
     ['gymToken','gymName','gymUsername','gymAvatar'].forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage).filter(k => k.startsWith('dc_')).forEach(k => localStorage.removeItem(k));
     location.href = '/login.html';
     return;
   }

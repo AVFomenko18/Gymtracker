@@ -34,3 +34,9 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+
+// Keep Neon DB warm — free tier auto-suspends after 5 min of inactivity
+const pool = require('./src/db');
+setInterval(async () => {
+  try { await pool.query('SELECT 1'); } catch {}
+}, 4 * 60 * 1000);

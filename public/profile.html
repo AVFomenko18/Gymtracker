@@ -86,6 +86,7 @@
   </div>
 
   <script src="/js/api.js?v=9"></script>
+  <script src="/js/cache.js"></script>
   <script>
     if (!localStorage.getItem('gymToken')) { location.href = '/login.html'; }
 
@@ -144,10 +145,8 @@
 
     function logout() {
       if (!confirm('Выйти из аккаунта?')) return;
-      localStorage.removeItem('gymToken');
-      localStorage.removeItem('gymName');
-      localStorage.removeItem('gymUsername');
-      localStorage.removeItem('gymAvatar');
+      ['gymToken','gymName','gymUsername','gymAvatar'].forEach(k => localStorage.removeItem(k));
+      dataCache.clearAll();
       location.href = '/login.html';
     }
 

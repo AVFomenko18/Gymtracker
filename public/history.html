@@ -81,13 +81,11 @@
     }
 
     async function deleteWorkout(id) {
-      tg.showConfirm('Удалить тренировку? Это действие нельзя отменить.', async (confirmed) => {
-        if (!confirmed) return;
-        await api.delete(`/api/workouts/${id}`);
-        workouts = workouts.filter(w => String(w.id) !== String(id));
-        dataCache.set('workouts', workouts);
-        render();
-      });
+      if (!confirm('Удалить тренировку? Это действие нельзя отменить.')) return;
+      await api.delete(`/api/workouts/${id}`);
+      workouts = workouts.filter(w => String(w.id) !== String(id));
+      dataCache.set('workouts', workouts);
+      render();
     }
 
     async function load() {
