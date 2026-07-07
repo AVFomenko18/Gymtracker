@@ -41,12 +41,16 @@ router.get('/:id', async (req, res) => {
   if (!workout.rows.length) return res.status(404).json({ error: 'Not found' });
 
   const sets = await pool.query(
-    `SELECT s.id, s.exercise_id, s.weight, s.reps, s.set_order,
-            e.name AS exercise_name, e.muscle_group
-     FROM sets s
-     JOIN exercises e ON e.id = s.exercise_id
-     WHERE s.workout_id = $1
-     ORDER BY s.exercise_id, s.set_order`,
+    `SELECT id, exercise_id, weight, reps, set_order, exercise_name, muscle_group
+     FROM (
+       SELECT s.id, s.exercise_id, s.weight, s.reps, s.set_order,
+              e.name AS exercise_name, e.muscle_group,
+              MIN(s.id) OVER (PARTITION BY s.exercise_id) AS ex_first_id
+       FROM sets s
+       JOIN exercises e ON e.id = s.exercise_id
+       WHERE s.workout_id = $1
+     ) q
+     ORDER BY ex_first_id, set_order`,
     [req.params.id]
   );
 

@@ -499,8 +499,10 @@
       newSet.exercise_name = ex?.name || '';
       newSet.muscle_group = ex?.muscle_group || '';
 
-      sets = sets.filter(s => !(s._placeholder && String(s.exercise_id) === String(exerciseId)));
-      sets.push(newSet);
+      // Replace placeholder in-place so the exercise stays in the same position
+      const phIdx = sets.findIndex(s => s._placeholder && String(s.exercise_id) === String(exerciseId));
+      if (phIdx !== -1) sets.splice(phIdx, 1, newSet);
+      else sets.push(newSet);
       wInput.value = ''; rInput.value = '';
       render();
     }
