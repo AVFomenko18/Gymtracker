@@ -99,6 +99,15 @@
     }
 
     .no-results { text-align: center; padding: 40px 20px; opacity: 0.5; font-size: 15px; }
+
+    .program-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #f0f0f0);
+    }
+    .program-item-info { flex: 1; }
+    .program-item-name { font-size: 15px; font-weight: 600; }
+    .program-item-count { font-size: 12px; opacity: 0.5; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -112,7 +121,22 @@
     <input class="search-input" type="search" id="search" placeholder="🔍 Поиск упражнения..." oninput="renderList()">
   </div>
 
+  <div id="programs-section"></div>
   <div id="list"></div>
+
+  <!-- Edit program modal -->
+  <div class="modal-overlay" id="edit-prog-modal" style="display:none" onclick="if(event.target===this)closeEditProgram()">
+    <div class="modal" style="max-height:75vh;display:flex;flex-direction:column;overflow:hidden;padding-bottom:28px">
+      <div class="modal-title">Редактировать программу</div>
+      <input class="modal-input" type="text" id="edit-prog-name" placeholder="Название программы">
+      <div style="font-size:13px;opacity:0.6;margin-bottom:8px">Упражнения:</div>
+      <div id="edit-prog-exercises" style="overflow-y:auto;flex:1;min-height:60px;margin-bottom:14px"></div>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closeEditProgram()">Отмена</button>
+        <button class="btn-save" onclick="saveEditProgram()">Сохранить</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Create/Edit modal -->
   <div class="modal-overlay" id="modal" style="display:none" onclick="closeModalOnBg(event)">
@@ -154,8 +178,108 @@
     function muscleIcon(mg) { return MUSCLE_ICONS[mg] || '🎯'; }
 
     let exercises = [];
+    let programs = [];
     let editingId = null;
     let selectedMuscle = MUSCLE_GROUPS[0];
+
+    // ── Programs ──────────────────────────────────────────────────────────────
+
+    function renderPrograms() {
+      const el = document.getElementById('programs-section');
+      if (selectMode) { el.innerHTML = ''; return; }
+      if (!programs.length) { el.innerHTML = ''; return; }
+      let html = `<div class="group-title">ПРОГРАММЫ ТРЕНИРОВОК</div>`;
+      for (const p of programs) {
+        html += `
+          <div class="program-item">
+            <span style="font-size:18px;flex-shrink:0">📋</span>
+            <div class="program-item-info">
+              <div class="program-item-name">${p.name}</div>
+              <div class="program-item-count">${p.exercise_count} упражн.</div>
+            </div>
+            <div class="ex-actions">
+              <button class="btn-icon" onclick="openEditProgram('${p.id}')">✏️</button>
+              <button class="btn-icon" onclick="deleteProgram('${p.id}','${p.name.replace(/'/g,"&#39;")}')">🗑</button>
+            </div>
+          </div>`;
+      }
+      el.innerHTML = html;
+    }
+
+    let editingProgramId = null;
+    let editingProgramExercises = [];
+
+    async function openEditProgram(id) {
+      editingProgramId = id;
+      try {
+        const prog = await api.get(`/api/programs/${id}`);
+        editingProgramExercises = prog.exercises.map(e => ({...e}));
+        document.getElementById('edit-prog-name').value = prog.name;
+        renderEditProgramExercises();
+        document.getElementById('edit-prog-modal').style.display = 'flex';
+      } catch(err) {
+        alert('Ошибка загрузки: ' + err.message);
+      }
+    }
+
+    function renderEditProgramExercises() {
+      const el = document.getElementById('edit-prog-exercises');
+      if (!editingProgramExercises.length) {
+        el.innerHTML = '<div style="opacity:0.5;font-size:13px;padding:8px 0">Нет упражнений</div>';
+        return;
+      }
+      el.innerHTML = editingProgramExercises.map((e, i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--tg-theme-secondary-bg-color,#f0f0f0)">
+          <span style="font-size:16px">${muscleIcon(e.muscle_group)}</span>
+          <span style="flex:1;font-size:14px">${e.name}</span>
+          <button onclick="removeEditProgramExercise(${i})" style="background:none;border:none;font-size:22px;color:#e53e3e;cursor:pointer;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center">×</button>
+        </div>
+      `).join('');
+    }
+
+    function removeEditProgramExercise(idx) {
+      editingProgramExercises.splice(idx, 1);
+      renderEditProgramExercises();
+    }
+
+    function closeEditProgram() {
+      document.getElementById('edit-prog-modal').style.display = 'none';
+      editingProgramId = null;
+      editingProgramExercises = [];
+    }
+
+    async function saveEditProgram() {
+      const name = document.getElementById('edit-prog-name').value.trim();
+      if (!name) { document.getElementById('edit-prog-name').focus(); return; }
+      try {
+        await api.put(`/api/programs/${editingProgramId}`, {
+          name,
+          exercise_ids: editingProgramExercises.map(e => e.exercise_id),
+        });
+        closeEditProgram();
+        dataCache.clear('programs');
+        const freshProgs = await api.get('/api/programs');
+        programs = freshProgs;
+        dataCache.set('programs', freshProgs);
+        renderPrograms();
+      } catch(err) {
+        alert('Ошибка: ' + err.message);
+      }
+    }
+
+    async function deleteProgram(id, name) {
+      if (!confirm(`Удалить программу «${name}»?`)) return;
+      try {
+        await api.delete(`/api/programs/${id}`);
+        programs = programs.filter(p => String(p.id) !== String(id));
+        dataCache.set('programs', programs);
+        renderPrograms();
+      } catch(err) {
+        alert('Ошибка: ' + err.message);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     async function load() {
       const cached = dataCache.get('exercises');
@@ -164,6 +288,15 @@
       exercises = fresh;
       dataCache.set('exercises', fresh);
       renderList();
+
+      if (!selectMode) {
+        const cachedProgs = dataCache.get('programs');
+        if (cachedProgs) { programs = cachedProgs; renderPrograms(); }
+        const freshProgs = await api.get('/api/programs');
+        programs = freshProgs;
+        dataCache.set('programs', freshProgs);
+        renderPrograms();
+      }
     }
 
     function renderList() {

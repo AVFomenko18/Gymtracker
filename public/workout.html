@@ -112,6 +112,53 @@
       background: #e53e3e; color: #fff; border: none; cursor: pointer;
     }
     .superset-bar .btn-delete-ex:disabled { opacity: 0.4; cursor: default; }
+
+    /* Program modals */
+    .prog-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: flex; align-items: flex-end; z-index: 100;
+    }
+    .prog-sheet {
+      background: var(--tg-theme-bg-color, #fff);
+      border-radius: 16px 16px 0 0;
+      padding: 20px 16px 32px;
+      width: 100%; max-height: 72vh; overflow-y: auto; box-sizing: border-box;
+    }
+    .prog-sheet-title { font-size: 17px; font-weight: 700; margin-bottom: 14px; }
+    .prog-input {
+      width: 100%; padding: 12px 16px; border-radius: 12px; margin-bottom: 10px;
+      border: 1.5px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      color: var(--tg-theme-text-color, #000);
+      font-size: 15px; box-sizing: border-box;
+    }
+    .prog-input:focus { outline: none; border-color: var(--tg-theme-button-color, #2481cc); }
+    .prog-ex-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #f0f0f0);
+      font-size: 14px;
+    }
+    .prog-ex-item:last-child { border-bottom: none; }
+    .prog-pick-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #f0f0f0);
+      cursor: pointer;
+    }
+    .prog-pick-item:last-child { border-bottom: none; }
+    .prog-pick-item:active { opacity: 0.7; }
+    .prog-modal-btns { display: flex; gap: 8px; margin-top: 14px; }
+    .prog-btn-cancel {
+      flex: 1; padding: 13px; border-radius: 12px; font-size: 15px; font-weight: 600;
+      border: 1.5px solid var(--tg-theme-secondary-bg-color, #e0e0e0);
+      background: transparent; color: var(--tg-theme-text-color, #000); cursor: pointer;
+    }
+    .prog-btn-save {
+      flex: 2; padding: 13px; border-radius: 12px; font-size: 15px; font-weight: 700;
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff); border: none; cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -127,6 +174,29 @@
   <div class="page" id="page-wrap">
     <div id="main-content">
       <div class="spinner">Загрузка...</div>
+    </div>
+  </div>
+
+  <!-- Save as program modal -->
+  <div class="prog-overlay" id="save-prog-modal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+    <div class="prog-sheet">
+      <div class="prog-sheet-title">💾 Сохранить как программу</div>
+      <input class="prog-input" type="text" id="prog-name-input" placeholder="Название, например «День ног»">
+      <div style="font-size:13px;opacity:0.6;margin-bottom:6px" id="save-prog-ex-label"></div>
+      <div id="save-prog-exercises"></div>
+      <div class="prog-modal-btns">
+        <button class="prog-btn-cancel" onclick="document.getElementById('save-prog-modal').style.display='none'">Отмена</button>
+        <button class="prog-btn-save" onclick="saveAsProgram()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load program modal -->
+  <div class="prog-overlay" id="load-prog-modal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+    <div class="prog-sheet">
+      <div class="prog-sheet-title">📋 Выбрать программу</div>
+      <div id="load-prog-list"><div style="text-align:center;padding:20px;opacity:0.5;font-size:14px">Загрузка...</div></div>
+      <button class="prog-btn-cancel" style="width:100%;margin-top:14px;box-sizing:border-box" onclick="document.getElementById('load-prog-modal').style.display='none'">Отмена</button>
     </div>
   </div>
 
@@ -375,10 +445,19 @@
         const copyBtn = existingId ? `<button class="btn-outline" onclick="copyWorkoutToToday()" style="width:100%;justify-content:center;margin-top:8px">
             📋 Скопировать на сегодня
           </button>` : '';
+        const noExercises = ordered.length === 0;
+        const loadBtn = noExercises ? `<button class="btn-outline" onclick="openLoadProgram()" style="width:100%;justify-content:center;margin-top:8px">
+            📋 Начать по программе
+          </button>` : '';
+        const saveBtn = !noExercises ? `<button class="btn-outline" onclick="openSaveProgram()" style="width:100%;justify-content:center;margin-top:8px">
+            💾 Сохранить как программу
+          </button>` : '';
         html += `<div class="card">
           <button class="btn-primary" onclick="goToExercisePicker()" style="margin-bottom:0">
             + Выбрать упражнение
           </button>
+          ${loadBtn}
+          ${saveBtn}
           ${copyBtn}
         </div>`;
       }
@@ -512,6 +591,82 @@
       sets = sets.filter(s => String(s.id) !== String(setId));
       render();
     }
+
+    // ── Programs ──────────────────────────────────────────────────────────────
+
+    let progExercisesToSave = [];
+
+    function openSaveProgram() {
+      const groups = groupByExercise();
+      progExercisesToSave = groups.map(g => ({ id: g.exercise_id, name: g.exercise_name, muscle_group: g.muscle_group }));
+      if (!progExercisesToSave.length) return;
+      document.getElementById('prog-name-input').value = '';
+      document.getElementById('save-prog-ex-label').textContent = `Упражнения (${progExercisesToSave.length}):`;
+      document.getElementById('save-prog-exercises').innerHTML = progExercisesToSave.map(e =>
+        `<div class="prog-ex-item"><span>${muscleIcon(e.muscle_group)}</span><span>${e.name}</span></div>`
+      ).join('');
+      document.getElementById('save-prog-modal').style.display = 'flex';
+      setTimeout(() => document.getElementById('prog-name-input').focus(), 100);
+    }
+
+    async function saveAsProgram() {
+      const name = document.getElementById('prog-name-input').value.trim();
+      if (!name) { document.getElementById('prog-name-input').focus(); return; }
+      try {
+        await api.post('/api/programs', { name, exercise_ids: progExercisesToSave.map(e => e.id) });
+        document.getElementById('save-prog-modal').style.display = 'none';
+        dataCache.clear('programs');
+        showToast('✅ Программа «' + name + '» сохранена');
+      } catch(err) {
+        alert('Ошибка: ' + err.message);
+      }
+    }
+
+    async function openLoadProgram() {
+      document.getElementById('load-prog-modal').style.display = 'flex';
+      try {
+        const progs = await api.get('/api/programs');
+        if (!progs.length) {
+          document.getElementById('load-prog-list').innerHTML =
+            '<div style="text-align:center;padding:20px;opacity:0.5;font-size:14px">Сохранённых программ нет.<br>После тренировки нажми «💾 Сохранить как программу».</div>';
+          return;
+        }
+        document.getElementById('load-prog-list').innerHTML = progs.map(p => `
+          <div class="prog-pick-item" onclick="loadProgramToWorkout('${p.id}')">
+            <div style="flex:1">
+              <div style="font-size:15px;font-weight:600">${p.name}</div>
+              <div style="font-size:13px;opacity:0.5;margin-top:2px">${p.exercise_count} упражнений</div>
+            </div>
+            <span style="opacity:0.3;font-size:18px">›</span>
+          </div>
+        `).join('');
+      } catch(err) {
+        document.getElementById('load-prog-list').innerHTML =
+          `<div style="color:#e53e3e;padding:16px;font-size:14px">Ошибка: ${err.message}</div>`;
+      }
+    }
+
+    async function loadProgramToWorkout(programId) {
+      document.getElementById('load-prog-modal').style.display = 'none';
+      try {
+        const prog = await api.get(`/api/programs/${programId}`);
+        for (const ex of prog.exercises) {
+          addExerciseById(String(ex.exercise_id));
+        }
+      } catch(err) {
+        alert('Ошибка загрузки программы: ' + err.message);
+      }
+    }
+
+    function showToast(msg) {
+      const el = document.createElement('div');
+      el.textContent = msg;
+      el.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:999;pointer-events:none;white-space:nowrap';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2500);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     init().catch(err => {
       document.getElementById('main-content').innerHTML =
