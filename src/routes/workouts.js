@@ -107,9 +107,17 @@ router.put('/:id', async (req, res) => {
 
 // Delete workout
 router.delete('/:id', async (req, res) => {
-  await pool.query(
-    `DELETE FROM workouts WHERE id = $1 AND user_id = $2`,
+  // First fetch the date so we can wipe ALL workouts for that day
+  // (duplicate empty workouts accumulate from navigation bugs and would
+  //  reappear after deleting only the target ID)
+  const row = await pool.query(
+    `SELECT date FROM workouts WHERE id = $1 AND user_id = $2`,
     [req.params.id, req.dbUser.id]
+  );
+  if (!row.rows.length) return res.json({ ok: true }); // already gone
+  await pool.query(
+    `DELETE FROM workouts WHERE user_id = $1 AND date = $2`,
+    [req.dbUser.id, row.rows[0].date]
   );
   res.json({ ok: true });
 });
