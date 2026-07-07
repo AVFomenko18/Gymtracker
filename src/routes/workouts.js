@@ -2,17 +2,21 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// List workouts
+// List workouts — one per date, prefer the one with most sets
 router.get('/', async (req, res) => {
   const result = await pool.query(
-    `SELECT w.id, w.date, w.note, w.created_at,
-            COALESCE(SUM(s.weight * s.reps), 0) AS tonnage,
-            COUNT(DISTINCT s.id) AS total_sets
-     FROM workouts w
-     LEFT JOIN sets s ON s.workout_id = w.id
-     WHERE w.user_id = $1
-     GROUP BY w.id
-     ORDER BY w.date DESC, w.created_at DESC`,
+    `WITH stats AS (
+       SELECT w.id, w.date, w.note, w.created_at,
+              COALESCE(SUM(s.weight * s.reps), 0) AS tonnage,
+              COUNT(DISTINCT s.id) AS total_sets
+       FROM workouts w
+       LEFT JOIN sets s ON s.workout_id = w.id
+       WHERE w.user_id = $1
+       GROUP BY w.id
+     )
+     SELECT DISTINCT ON (date) id, date, note, created_at, tonnage, total_sets
+     FROM stats
+     ORDER BY date DESC, total_sets DESC, created_at DESC`,
     [req.dbUser.id]
   );
   res.json(result.rows);

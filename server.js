@@ -28,15 +28,19 @@ app.use('/api/meals', authMiddleware, mealsRouter);
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err.message, err.stack);
-  res.status(500).json({ error: 'Ошибка сервера' });
+  res.status(500).json({ error: err.message || 'Ошибка сервера' });
 });
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
 
-// Keep Neon DB warm — free tier auto-suspends after 5 min of inactivity
 const pool = require('./src/db');
+
+// Warm up DB immediately on startup so first user request isn't slow
+pool.query('SELECT 1').catch(e => console.error('DB warmup failed:', e.message));
+
+// Keep Neon warm — free tier auto-suspends after 5 min of inactivity
 setInterval(async () => {
   try { await pool.query('SELECT 1'); } catch {}
 }, 4 * 60 * 1000);

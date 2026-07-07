@@ -112,7 +112,8 @@
     function buildWorkoutDayMap() {
       const map = {};
       for (const w of workouts) {
-        map[String(w.date).slice(0, 10)] = w.id;
+        const key = String(w.date).slice(0, 10);
+        if (!map[key]) map[key] = w.id; // keep first = newest (list sorted by date DESC)
       }
       return map;
     }
