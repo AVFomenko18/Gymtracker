@@ -169,7 +169,11 @@
       btn.style.opacity = '0.5';
       try {
         const today = localToday();
-        const list = workouts.length ? workouts : await api.get('/api/workouts');
+        // Always fetch fresh — stale cache could miss a just-created workout
+        // and cause a duplicate to be created
+        const list = await api.get('/api/workouts');
+        workouts = list;
+        dataCache.set('workouts', list);
         const todayWorkout = list.find(w => String(w.date).slice(0, 10) === today);
         location.href = todayWorkout ? `/workout.html?id=${todayWorkout.id}` : '/workout.html';
       } catch {

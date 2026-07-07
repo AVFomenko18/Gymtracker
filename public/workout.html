@@ -142,12 +142,10 @@
   <script>
     if (!localStorage.getItem('gymToken')) { location.href = '/login.html'; }
 
-    async function goBack() {
+    function goBack() {
       if (selectMode) { toggleSelectMode(); return; }
-      // New workout with no sets added — clean up the empty record
-      if (!existingId && workoutId && sets.filter(s => !s._placeholder).length === 0) {
-        await api.delete(`/api/workouts/${workoutId}`).catch(() => {});
-      }
+      // Invalidate workouts cache so home screen reflects the current state
+      dataCache.clear('workouts');
       location.href = '/';
     }
 
