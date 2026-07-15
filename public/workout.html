@@ -368,6 +368,14 @@
 
       let html = '';
 
+      if (!selectMode) {
+        html += `<div class="card">
+          <button class="btn-primary" onclick="goToExercisePicker()" style="margin-bottom:0">
+            + Выбрать упражнение
+          </button>
+        </div>`;
+      }
+
       if (realSetsAll.length > 0) {
         html += `<div class="card">
           <div class="summary"><span>Тоннаж тренировки</span><strong>${totalTonnage.toFixed(1)} кг</strong></div>
@@ -452,14 +460,13 @@
         const saveBtn = !noExercises ? `<button class="btn-outline" onclick="openSaveProgram()" style="width:100%;justify-content:center;margin-top:8px">
             💾 Сохранить как программу
           </button>` : '';
-        html += `<div class="card">
-          <button class="btn-primary" onclick="goToExercisePicker()" style="margin-bottom:0">
-            + Выбрать упражнение
-          </button>
-          ${loadBtn}
-          ${saveBtn}
-          ${copyBtn}
-        </div>`;
+        if (loadBtn || saveBtn || copyBtn) {
+          html += `<div class="card">
+            ${loadBtn}
+            ${saveBtn}
+            ${copyBtn}
+          </div>`;
+        }
       }
 
       if (sets.length === 0) {
@@ -556,6 +563,8 @@
         setTimeout(() => document.getElementById(`w-${exerciseId}`)?.focus(), 100);
         return;
       }
+      // Collapse every existing exercise so only the new one stays open
+      new Set(sets.map(s => String(s.exercise_id))).forEach(id => collapsedExercises.add(id));
       sets.push({
         id: 'placeholder-' + exerciseId, exercise_id: String(exerciseId),
         exercise_name: ex.name, muscle_group: ex.muscle_group,
