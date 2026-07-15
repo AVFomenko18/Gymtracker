@@ -330,15 +330,15 @@
     }
 
     function groupByExercise() {
-      const map = {};
+      const map = new Map();
       for (const s of sets) {
         const key = String(s.exercise_id);
-        if (!map[key]) {
-          map[key] = { exercise_id: key, exercise_name: s.exercise_name, muscle_group: s.muscle_group, sets: [] };
+        if (!map.has(key)) {
+          map.set(key, { exercise_id: key, exercise_name: s.exercise_name, muscle_group: s.muscle_group, sets: [] });
         }
-        map[key].sets.push(s);
+        map.get(key).sets.push(s);
       }
-      return Object.values(map);
+      return Array.from(map.values());
     }
 
     const MUSCLE_ICONS = {
