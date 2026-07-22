@@ -187,13 +187,18 @@
         return;
       }
 
-      const stats = sessions.map(s => ({
-        date: s.date,
-        sets: s.sets,
-        maxWeight: Math.max(...s.sets.map(x => x.weight)),
-        maxReps:   Math.max(...s.sets.map(x => x.reps)),
-        tonnage:   s.sets.reduce((sum, x) => sum + x.weight * x.reps, 0),
-      }));
+      const stats = sessions.map(s => {
+        const maxWeight = Math.max(...s.sets.map(x => x.weight));
+        const topSets = s.sets.filter(x => x.weight === maxWeight);
+        return {
+          date: s.date,
+          sets: s.sets,
+          maxWeight,
+          repsAtMaxWeight: Math.max(...topSets.map(x => x.reps)),
+          maxReps:   Math.max(...s.sets.map(x => x.reps)),
+          tonnage:   s.sets.reduce((sum, x) => sum + x.weight * x.reps, 0),
+        };
+      });
 
       const allMaxWeight = Math.max(...stats.map(s => s.maxWeight));
       const allMaxReps   = Math.max(...stats.map(s => s.maxReps));
@@ -214,7 +219,7 @@
       // Charts
       html += chartCard('Тоннаж  ', stats.map(s => s.tonnage), stats, ' кг');
       html += chartCard('Макс. вес  ', stats.map(s => s.maxWeight), stats, ' кг');
-      html += chartCard('Макс. повторы  ', stats.map(s => s.maxReps), stats, '');
+      html += chartCard('Повторы на макс. весе  ', stats.map(s => s.repsAtMaxWeight), stats, '');
 
       // History table (last 8 sessions)
       const recent = stats.slice(-8);
