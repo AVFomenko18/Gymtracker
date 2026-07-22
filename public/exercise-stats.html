@@ -103,33 +103,75 @@
       return `${d} ${months[m-1]}`;
     }
 
-    function buildSVG(values, w, h) {
-      if (!values.length) return '';
-      if (values.length === 1) {
-        return `<rect x="0" y="0" width="${w}" height="${h}" fill="rgba(36,129,204,0.08)" rx="6"/>
-                <circle cx="${w/2}" cy="${h/2}" r="5" fill="rgba(36,129,204,0.8)"/>`;
+    function formatVal(v) { return Number.isInteger(v) ? String(v) : v.toFixed(1); }
+
+    function showChartTooltip(e, date, text) {
+      e.stopPropagation();
+      let el = document.getElementById('chart-tooltip');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'chart-tooltip';
+        el.style.cssText = 'position:fixed;pointer-events:none;background:rgba(0,0,0,0.82);color:#fff;font-size:12px;font-weight:600;padding:5px 9px;border-radius:7px;transform:translate(-50%,-130%);z-index:999;white-space:nowrap;transition:opacity 0.15s;';
+        document.body.appendChild(el);
       }
-      const pad = 10;
+      el.textContent = `${date}: ${text}`;
+      el.style.left = e.clientX + 'px';
+      el.style.top = e.clientY + 'px';
+      el.style.opacity = '1';
+      clearTimeout(window._chartTooltipTimer);
+      window._chartTooltipTimer = setTimeout(() => { el.style.opacity = '0'; }, 1800);
+    }
+
+    function buildSVG(values, dates, w, h, unit) {
+      if (!values.length) return '';
+      const padLeft = 34, padRight = 6, padTop = 14, padBottom = 6;
+      if (values.length === 1) {
+        const cx = padLeft + (w - padLeft - padRight) / 2;
+        return `<rect x="0" y="0" width="${w}" height="${h}" fill="rgba(36,129,204,0.08)" rx="6"/>
+                <circle cx="${cx}" cy="${h/2}" r="10" fill="transparent" onclick="showChartTooltip(event,'${dates[0]}','${formatVal(values[0])}${unit}')"/>
+                <circle cx="${cx}" cy="${h/2}" r="5" fill="rgba(36,129,204,0.8)" pointer-events="none"/>`;
+      }
       const minV = Math.min(...values), maxV = Math.max(...values);
       const range = maxV - minV || 1;
+      const plotW = w - padLeft - padRight;
+      const plotH = h - padTop - padBottom;
       const pts = values.map((v, i) => ({
-        x: (i / (values.length - 1)) * w,
-        y: pad + (h - pad*2) - ((v - minV) / range) * (h - pad*2)
+        x: padLeft + (i / (values.length - 1)) * plotW,
+        y: padTop + plotH - ((v - minV) / range) * plotH
       }));
+
+      // Y-axis gridlines: max / mid / min
+      let grid = '';
+      [maxV, (maxV + minV) / 2, minV].forEach(gv => {
+        const y = padTop + plotH - ((gv - minV) / range) * plotH;
+        grid += `<line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${w - padRight}" y2="${y.toFixed(1)}" stroke="rgba(0,0,0,0.08)" stroke-dasharray="3,3"/>
+                  <text x="0" y="${(y + 3).toFixed(1)}" font-size="9" fill="rgba(128,128,128,0.95)">${formatVal(gv)}</text>`;
+      });
+
       let line = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
       for (let i = 1; i < pts.length; i++) {
         const cp = (pts[i-1].x + pts[i].x) / 2;
         line += ` C ${cp.toFixed(1)} ${pts[i-1].y.toFixed(1)} ${cp.toFixed(1)} ${pts[i].y.toFixed(1)} ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
       }
-      const area = line + ` L ${pts[pts.length-1].x.toFixed(1)} ${h} L 0 ${h} Z`;
-      return `<path d="${area}" fill="rgba(36,129,204,0.12)"/>
-              <path d="${line}" fill="none" stroke="rgba(36,129,204,0.85)" stroke-width="2.5" stroke-linecap="round"/>`;
+      const area = line + ` L ${pts[pts.length-1].x.toFixed(1)} ${h - padBottom} L ${padLeft} ${h - padBottom} Z`;
+
+      let dots = '';
+      pts.forEach((p, i) => {
+        dots += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="transparent" onclick="showChartTooltip(event,'${dates[i]}','${formatVal(values[i])}${unit}')"/>
+                  <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="rgba(36,129,204,0.95)" stroke="#fff" stroke-width="1.2" pointer-events="none"/>`;
+      });
+
+      return grid
+        + `<path d="${area}" fill="rgba(36,129,204,0.12)"/>`
+        + `<path d="${line}" fill="none" stroke="rgba(36,129,204,0.85)" stroke-width="2.5" stroke-linecap="round"/>`
+        + dots;
     }
 
     function chartCard(title, values, sessions, unit) {
       if (values.length < 1) return '';
       const maxVal = Math.max(...values);
-      const svg = buildSVG(values, 320, 120);
+      const dates = sessions.map(s => formatDate(s.date));
+      const svg = buildSVG(values, dates, 320, 120, unit);
       const labelLeft = formatDate(sessions[0].date);
       const labelRight = sessions.length > 1 ? formatDate(sessions[sessions.length-1].date) : '';
       return `<div class="card">
