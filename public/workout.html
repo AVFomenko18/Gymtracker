@@ -539,14 +539,15 @@
         alert('Нет подходов для копирования');
         return;
       }
-      const newWorkout = await api.post('/api/workouts', { date: today });
+      // Unique exercise ids in first-occurrence order — no weight/reps copied
+      const exerciseIds = [];
+      const seen = new Set();
       for (const s of realSets) {
-        await api.post(`/api/workouts/${newWorkout.id}/sets`, {
-          exercise_id: s.exercise_id,
-          weight: s.weight,
-          reps: s.reps,
-        });
+        const id = String(s.exercise_id);
+        if (!seen.has(id)) { seen.add(id); exerciseIds.push(id); }
       }
+      const newWorkout = await api.post('/api/workouts', { date: today });
+      sessionStorage.setItem('pendingExercises', JSON.stringify(exerciseIds));
       location.href = `/workout.html?id=${newWorkout.id}`;
     }
 
