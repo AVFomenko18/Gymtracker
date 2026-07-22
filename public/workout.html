@@ -599,7 +599,13 @@
     async function deleteSet(setId, exerciseId) {
       await api.delete(`/api/workouts/sets/${setId}`);
       sets = sets.filter(s => String(s.id) !== String(setId));
-      render();
+      // Deleting the last remaining set for an exercise used to make the
+      // whole exercise vanish from the day — keep it as an empty card instead.
+      if (sets.some(s => String(s.exercise_id) === String(exerciseId))) {
+        render();
+      } else {
+        addExerciseById(exerciseId);
+      }
     }
 
     // ── Programs ──────────────────────────────────────────────────────────────
