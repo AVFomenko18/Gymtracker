@@ -9,6 +9,7 @@ const workoutsRouter = require('./src/routes/workouts');
 const measurementsRouter = require('./src/routes/measurements');
 const mealsRouter = require('./src/routes/meals');
 const programsRouter = require('./src/routes/programs');
+const assessmentsRouter = require('./src/routes/assessments');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,7 @@ app.use('/api/workouts', authMiddleware, workoutsRouter);
 app.use('/api/measurements', authMiddleware, measurementsRouter);
 app.use('/api/meals', authMiddleware, mealsRouter);
 app.use('/api/programs', authMiddleware, programsRouter);
+app.use('/api/assessments', authMiddleware, assessmentsRouter);
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err.message, err.stack);
@@ -59,6 +61,21 @@ pool.query(`
   );
   CREATE INDEX IF NOT EXISTS idx_program_exercises_program ON program_exercises(program_id);
 `).catch(e => console.error('Programs migration failed:', e.message));
+
+// Auto-create assessments table (idempotent, safe to run on every startup)
+pool.query(`
+  CREATE TABLE IF NOT EXISTS assessments (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    client_name TEXT NOT NULL,
+    test_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    total_score INTEGER,
+    data JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_assessments_user ON assessments(user_id);
+`).catch(e => console.error('Assessments migration failed:', e.message));
 
 // Keep Neon warm — free tier auto-suspends after 5 min of inactivity
 setInterval(async () => {

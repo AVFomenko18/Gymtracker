@@ -1,4 +1,4 @@
-const CACHE = 'gymtracker-v4';
+const CACHE = 'gymtracker-v5';
 const STATIC = [
   '/',
   '/index.html',
@@ -10,6 +10,7 @@ const STATIC = [
   '/measurements.html',
   '/nutrition.html',
   '/exercise-stats.html',
+  '/assessment.html',
   '/css/style.css',
   '/js/api.js',
   '/js/cache.js',
