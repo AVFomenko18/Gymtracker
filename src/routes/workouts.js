@@ -129,7 +129,7 @@ router.delete('/:id', async (req, res) => {
 // Add set to workout
 router.post('/:id/sets', async (req, res) => {
   const { exercise_id, weight, reps } = req.body;
-  if (!exercise_id || !weight || !reps) {
+  if (!exercise_id || weight === undefined || weight === null || weight < 0 || !reps) {
     return res.status(400).json({ error: 'exercise_id, weight, reps required' });
   }
 

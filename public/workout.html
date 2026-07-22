@@ -580,7 +580,7 @@
       const rInput = document.getElementById(`r-${exerciseId}`);
       const weight = parseFloat(wInput.value);
       const reps = parseInt(rInput.value);
-      if (!weight || !reps || weight <= 0 || reps <= 0) { wInput.focus(); return; }
+      if (isNaN(weight) || weight < 0 || !reps || reps <= 0) { wInput.focus(); return; }
 
 
       const newSet = await api.post(`/api/workouts/${workoutId}/sets`, { exercise_id: exerciseId, weight, reps });
