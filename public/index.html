@@ -65,24 +65,23 @@
     }
     .habits-table-wrap { overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; }
     .habits-table-wrap::-webkit-scrollbar { display:none; }
-    .habits-table { border-collapse:separate; border-spacing:4px; width:100%; min-width:390px; table-layout:fixed; }
+    .habits-table { border-collapse:separate; border-spacing:4px; width:100%; min-width:460px; table-layout:fixed; }
     .habits-table th { font-size:10px; font-weight:600; opacity:.55; text-align:center; }
     .habits-table th:first-child { width:112px; text-align:left; opacity:1; }
     .habit-date { display:block; font-size:12px; margin-top:2px; }
     .habit-today { color:var(--tg-theme-button-color, #2481cc); opacity:1 !important; }
     .habit-label { font-size:12px; line-height:1.2; text-align:left; font-weight:600; }
-    .habit-check {
-      appearance:none; -webkit-appearance:none; width:34px; height:34px; margin:0;
+    .habit-mark {
+      width:44px; height:44px; margin:0; padding:0;
       border:2px solid rgba(120,120,128,.25); border-radius:10px; background:var(--tg-theme-bg-color, #fff);
-      cursor:pointer; position:relative; vertical-align:middle;
+      cursor:pointer; vertical-align:middle; color:transparent; font-size:27px; font-weight:800;
     }
-    .habit-check:checked { background:var(--tg-theme-button-color, #2481cc); border-color:var(--tg-theme-button-color, #2481cc); }
-    .habit-check:checked::after {
-      content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-      color:#fff; font-size:22px; font-weight:800;
-    }
-    .habit-check:disabled { opacity:.22; cursor:default; background:transparent; }
-    .habit-cell { text-align:center; height:42px; }
+    .habit-mark.done { background:#2fac66; border-color:#2fac66; color:#fff; }
+    .habit-mark.missed { background:#e05252; border-color:#e05252; color:#fff; }
+    .habit-mark:disabled { opacity:.22; cursor:default; background:transparent; color:transparent; }
+    .habit-mark:active:not(:disabled) { transform:scale(.92); }
+    .habit-cell { text-align:center; height:48px; }
+    .habits-hint { font-size:11px; opacity:.5; margin-top:9px; text-align:center; }
     .habits-error { color:#c33; font-size:12px; text-align:center; padding-top:8px; }
   </style>
 </head>
@@ -195,14 +194,15 @@
         for (const d of dates) {
           const key = dateKey(d);
           const weekendEnglish = habit === 'english' && (d.getDay() === 0 || d.getDay() === 6);
-          const checked = Boolean(habits[key]?.[habit]);
-          html += `<td class="habit-cell"><input class="habit-check" type="checkbox"
-            aria-label="${label}, ${key}" ${checked ? 'checked' : ''} ${weekendEnglish ? 'disabled' : ''}
-            onchange="toggleHabit('${key}','${habit}',this.checked,this)"></td>`;
+          const status = habits[key]?.[habit] || 'pending';
+          const symbol = status === 'done' ? '✓' : status === 'missed' ? '×' : '•';
+          html += `<td class="habit-cell"><button class="habit-mark ${status}" type="button"
+            aria-label="${label}, ${key}: ${status === 'done' ? 'выполнено' : status === 'missed' ? 'не выполнено' : 'не отмечено'}"
+            ${weekendEnglish ? 'disabled' : ''} onclick="cycleHabit('${key}','${habit}',this)">${symbol}</button></td>`;
         }
         html += '</tr>';
       }
-      html += `</tbody></table></div>${error ? `<div class="habits-error">${error}</div>` : ''}</div>`;
+      html += `</tbody></table></div><div class="habits-hint">Нажимайте: пусто → ✓ выполнено → × не выполнено</div>${error ? `<div class="habits-error">${error}</div>` : ''}</div>`;
       document.getElementById('habits').innerHTML = html;
     }
 
@@ -224,16 +224,17 @@
       loadHabits();
     }
 
-    async function toggleHabit(date, habit, checked, input) {
-      input.disabled = true;
+    async function cycleHabit(date, habit, button) {
+      const current = habits[date]?.[habit] || 'pending';
+      const next = current === 'pending' ? 'done' : current === 'done' ? 'missed' : 'pending';
+      habits[date] = { ...(habits[date] || {}), date, [habit]: next };
+      renderHabits();
       try {
-        const row = await api.put(`/api/habits/${date}`, { habit, checked });
+        const row = await api.put(`/api/habits/${date}`, { habit, status: next });
         habits[date] = row;
       } catch (e) {
-        input.checked = !checked;
+        habits[date] = { ...(habits[date] || {}), [habit]: current };
         renderHabits('Не удалось сохранить отметку');
-      } finally {
-        input.disabled = false;
       }
     }
 

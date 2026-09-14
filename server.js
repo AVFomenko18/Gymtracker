@@ -88,9 +88,15 @@ pool.query(`
     english BOOLEAN NOT NULL DEFAULT FALSE,
     activity BOOLEAN NOT NULL DEFAULT FALSE,
     nutrition BOOLEAN NOT NULL DEFAULT FALSE,
+    english_missed BOOLEAN NOT NULL DEFAULT FALSE,
+    activity_missed BOOLEAN NOT NULL DEFAULT FALSE,
+    nutrition_missed BOOLEAN NOT NULL DEFAULT FALSE,
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (user_id, date)
   );
+  ALTER TABLE daily_habits ADD COLUMN IF NOT EXISTS english_missed BOOLEAN NOT NULL DEFAULT FALSE;
+  ALTER TABLE daily_habits ADD COLUMN IF NOT EXISTS activity_missed BOOLEAN NOT NULL DEFAULT FALSE;
+  ALTER TABLE daily_habits ADD COLUMN IF NOT EXISTS nutrition_missed BOOLEAN NOT NULL DEFAULT FALSE;
   CREATE INDEX IF NOT EXISTS idx_daily_habits_user_date ON daily_habits(user_id, date);
 `).catch(e => console.error('Daily habits migration failed:', e.message));
 

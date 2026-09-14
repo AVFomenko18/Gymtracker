@@ -4,6 +4,7 @@ const pool = require('../db');
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const HABIT_FIELDS = new Set(['english', 'activity', 'nutrition']);
+const HABIT_STATUSES = new Set(['pending', 'done', 'missed']);
 
 function isValidDate(value) {
   if (!DATE_RE.test(value || '')) return false;
@@ -21,7 +22,10 @@ router.get('/', async (req, res) => {
   }
 
   const result = await pool.query(
-    `SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date, english, activity, nutrition
+    `SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date,
+            CASE WHEN english THEN 'done' WHEN english_missed THEN 'missed' ELSE 'pending' END AS english,
+            CASE WHEN activity THEN 'done' WHEN activity_missed THEN 'missed' ELSE 'pending' END AS activity,
+            CASE WHEN nutrition THEN 'done' WHEN nutrition_missed THEN 'missed' ELSE 'pending' END AS nutrition
      FROM daily_habits
      WHERE user_id = $1 AND date BETWEEN $2 AND $3
      ORDER BY date`,
@@ -32,18 +36,25 @@ router.get('/', async (req, res) => {
 
 router.put('/:date', async (req, res) => {
   const { date } = req.params;
-  const { habit, checked } = req.body;
-  if (!isValidDate(date) || !HABIT_FIELDS.has(habit) || typeof checked !== 'boolean') {
+  const { habit, status } = req.body;
+  if (!isValidDate(date) || !HABIT_FIELDS.has(habit) || !HABIT_STATUSES.has(status)) {
     return res.status(400).json({ error: 'Некорректная отметка привычки' });
   }
 
+  const missedField = `${habit}_missed`;
+  const done = status === 'done';
+  const missed = status === 'missed';
+
   const result = await pool.query(
-    `INSERT INTO daily_habits (user_id, date, ${habit})
-     VALUES ($1, $2, $3)
+    `INSERT INTO daily_habits (user_id, date, ${habit}, ${missedField})
+     VALUES ($1, $2, $3, $4)
      ON CONFLICT (user_id, date)
-     DO UPDATE SET ${habit} = EXCLUDED.${habit}, updated_at = NOW()
-     RETURNING TO_CHAR(date, 'YYYY-MM-DD') AS date, english, activity, nutrition`,
-    [req.dbUser.id, date, checked]
+     DO UPDATE SET ${habit} = EXCLUDED.${habit}, ${missedField} = EXCLUDED.${missedField}, updated_at = NOW()
+     RETURNING TO_CHAR(date, 'YYYY-MM-DD') AS date,
+       CASE WHEN english THEN 'done' WHEN english_missed THEN 'missed' ELSE 'pending' END AS english,
+       CASE WHEN activity THEN 'done' WHEN activity_missed THEN 'missed' ELSE 'pending' END AS activity,
+       CASE WHEN nutrition THEN 'done' WHEN nutrition_missed THEN 'missed' ELSE 'pending' END AS nutrition`,
+    [req.dbUser.id, date, done, missed]
   );
   res.json(result.rows[0]);
 });
