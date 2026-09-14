@@ -50,6 +50,40 @@
       cursor: pointer; font-weight: 600;
     }
     .cal-day.has-workout:active { opacity: 0.75; }
+
+    .habits {
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      border-radius: 14px; padding: 14px; margin: 10px 0;
+    }
+    .habits-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .habits-title { font-size:15px; font-weight:700; }
+    .habits-range { font-size:12px; opacity:.55; margin-top:3px; }
+    .habits-nav { display:flex; gap:4px; }
+    .habits-nav button {
+      width:44px; height:44px; border:0; border-radius:12px; background:transparent;
+      color:var(--tg-theme-button-color, #2481cc); font-size:22px; cursor:pointer;
+    }
+    .habits-table-wrap { overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; }
+    .habits-table-wrap::-webkit-scrollbar { display:none; }
+    .habits-table { border-collapse:separate; border-spacing:4px; width:100%; min-width:390px; table-layout:fixed; }
+    .habits-table th { font-size:10px; font-weight:600; opacity:.55; text-align:center; }
+    .habits-table th:first-child { width:112px; text-align:left; opacity:1; }
+    .habit-date { display:block; font-size:12px; margin-top:2px; }
+    .habit-today { color:var(--tg-theme-button-color, #2481cc); opacity:1 !important; }
+    .habit-label { font-size:12px; line-height:1.2; text-align:left; font-weight:600; }
+    .habit-check {
+      appearance:none; -webkit-appearance:none; width:34px; height:34px; margin:0;
+      border:2px solid rgba(120,120,128,.25); border-radius:10px; background:var(--tg-theme-bg-color, #fff);
+      cursor:pointer; position:relative; vertical-align:middle;
+    }
+    .habit-check:checked { background:var(--tg-theme-button-color, #2481cc); border-color:var(--tg-theme-button-color, #2481cc); }
+    .habit-check:checked::after {
+      content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      color:#fff; font-size:22px; font-weight:800;
+    }
+    .habit-check:disabled { opacity:.22; cursor:default; background:transparent; }
+    .habit-cell { text-align:center; height:42px; }
+    .habits-error { color:#c33; font-size:12px; text-align:center; padding-top:8px; }
   </style>
 </head>
 <body>
@@ -89,6 +123,7 @@
     </div>
 
     <div id="calendar"></div>
+    <div id="habits"></div>
   </div>
 
   <script src="/js/api.js"></script>
@@ -103,10 +138,103 @@
     let workouts = [];
     let calYear = new Date().getFullYear();
     let calMonth = new Date().getMonth();
+    let habitsWeekStart = startOfWeek(new Date());
+    let habits = {};
 
     function localToday() {
       const d = new Date();
       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function dateKey(date) {
+      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    }
+
+    function startOfWeek(date) {
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      return d;
+    }
+
+    function weekDates() {
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(habitsWeekStart);
+        d.setDate(d.getDate() + i);
+        return d;
+      });
+    }
+
+    function renderHabits(error = '') {
+      const dates = weekDates();
+      const today = localToday();
+      const range = `${dates[0].getDate()} ${MONTHS[dates[0].getMonth()].toLowerCase()} — ${dates[6].getDate()} ${MONTHS[dates[6].getMonth()].toLowerCase()}`;
+      const rows = [
+        ['english', '🇬🇧 Английский'],
+        ['activity', '🏃 Тренировка / 10 000 шагов'],
+        ['nutrition', '🥗 Правильное питание']
+      ];
+
+      let html = `<div class="habits">
+        <div class="habits-header">
+          <div><div class="habits-title">Мои привычки</div><div class="habits-range">${range}</div></div>
+          <div class="habits-nav">
+            <button aria-label="Предыдущая неделя" onclick="changeHabitsWeek(-1)">‹</button>
+            <button aria-label="Следующая неделя" onclick="changeHabitsWeek(1)">›</button>
+          </div>
+        </div>
+        <div class="habits-table-wrap"><table class="habits-table"><thead><tr><th>Привычка</th>`;
+
+      for (const d of dates) {
+        const key = dateKey(d);
+        html += `<th class="${key === today ? 'habit-today' : ''}">${DAYS[(d.getDay()+6)%7]}<span class="habit-date">${d.getDate()}</span></th>`;
+      }
+      html += '</tr></thead><tbody>';
+
+      for (const [habit, label] of rows) {
+        html += `<tr><td class="habit-label">${label}</td>`;
+        for (const d of dates) {
+          const key = dateKey(d);
+          const weekendEnglish = habit === 'english' && (d.getDay() === 0 || d.getDay() === 6);
+          const checked = Boolean(habits[key]?.[habit]);
+          html += `<td class="habit-cell"><input class="habit-check" type="checkbox"
+            aria-label="${label}, ${key}" ${checked ? 'checked' : ''} ${weekendEnglish ? 'disabled' : ''}
+            onchange="toggleHabit('${key}','${habit}',this.checked,this)"></td>`;
+        }
+        html += '</tr>';
+      }
+      html += `</tbody></table></div>${error ? `<div class="habits-error">${error}</div>` : ''}</div>`;
+      document.getElementById('habits').innerHTML = html;
+    }
+
+    async function loadHabits() {
+      const dates = weekDates();
+      try {
+        const rows = await api.get(`/api/habits?from=${dateKey(dates[0])}&to=${dateKey(dates[6])}`);
+        habits = {};
+        for (const row of rows) habits[row.date] = row;
+        renderHabits();
+      } catch (e) {
+        renderHabits('Не удалось загрузить отметки');
+      }
+    }
+
+    function changeHabitsWeek(delta) {
+      habitsWeekStart.setDate(habitsWeekStart.getDate() + delta * 7);
+      renderHabits();
+      loadHabits();
+    }
+
+    async function toggleHabit(date, habit, checked, input) {
+      input.disabled = true;
+      try {
+        const row = await api.put(`/api/habits/${date}`, { habit, checked });
+        habits[date] = row;
+      } catch (e) {
+        input.checked = !checked;
+        renderHabits('Не удалось сохранить отметку');
+      } finally {
+        input.disabled = false;
+      }
     }
 
     function buildWorkoutDayMap() {
@@ -196,7 +324,9 @@
     }
 
     renderCalendar(); // show calendar grid immediately, highlights come after
+    renderHabits();
     loadWorkouts();
+    loadHabits();
   </script>
 </body>
 </html>

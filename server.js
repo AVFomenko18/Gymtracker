@@ -10,6 +10,7 @@ const measurementsRouter = require('./src/routes/measurements');
 const mealsRouter = require('./src/routes/meals');
 const programsRouter = require('./src/routes/programs');
 const assessmentsRouter = require('./src/routes/assessments');
+const habitsRouter = require('./src/routes/habits');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +30,7 @@ app.use('/api/measurements', authMiddleware, measurementsRouter);
 app.use('/api/meals', authMiddleware, mealsRouter);
 app.use('/api/programs', authMiddleware, programsRouter);
 app.use('/api/assessments', authMiddleware, assessmentsRouter);
+app.use('/api/habits', authMiddleware, habitsRouter);
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err.message, err.stack);
@@ -76,6 +78,21 @@ pool.query(`
   );
   CREATE INDEX IF NOT EXISTS idx_assessments_user ON assessments(user_id);
 `).catch(e => console.error('Assessments migration failed:', e.message));
+
+// Auto-create the daily habit tracker table
+pool.query(`
+  CREATE TABLE IF NOT EXISTS daily_habits (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    english BOOLEAN NOT NULL DEFAULT FALSE,
+    activity BOOLEAN NOT NULL DEFAULT FALSE,
+    nutrition BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (user_id, date)
+  );
+  CREATE INDEX IF NOT EXISTS idx_daily_habits_user_date ON daily_habits(user_id, date);
+`).catch(e => console.error('Daily habits migration failed:', e.message));
 
 // Keep Neon warm — free tier auto-suspends after 5 min of inactivity
 setInterval(async () => {
