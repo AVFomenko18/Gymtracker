@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require('../db');
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const HABIT_FIELDS = new Set(['english', 'activity', 'nutrition']);
+const HABIT_FIELDS = new Set(['english', 'activity', 'nutrition', 'vibe_coding']);
 const HABIT_STATUSES = new Set(['pending', 'done', 'missed']);
 
 function isValidDate(value) {
@@ -25,7 +25,8 @@ router.get('/', async (req, res) => {
     `SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date,
             CASE WHEN english THEN 'done' WHEN english_missed THEN 'missed' ELSE 'pending' END AS english,
             CASE WHEN activity THEN 'done' WHEN activity_missed THEN 'missed' ELSE 'pending' END AS activity,
-            CASE WHEN nutrition THEN 'done' WHEN nutrition_missed THEN 'missed' ELSE 'pending' END AS nutrition
+            CASE WHEN nutrition THEN 'done' WHEN nutrition_missed THEN 'missed' ELSE 'pending' END AS nutrition,
+            CASE WHEN vibe_coding THEN 'done' WHEN vibe_coding_missed THEN 'missed' ELSE 'pending' END AS vibe_coding
      FROM daily_habits
      WHERE user_id = $1 AND date BETWEEN $2 AND $3
      ORDER BY date`,
@@ -53,7 +54,8 @@ router.put('/:date', async (req, res) => {
      RETURNING TO_CHAR(date, 'YYYY-MM-DD') AS date,
        CASE WHEN english THEN 'done' WHEN english_missed THEN 'missed' ELSE 'pending' END AS english,
        CASE WHEN activity THEN 'done' WHEN activity_missed THEN 'missed' ELSE 'pending' END AS activity,
-       CASE WHEN nutrition THEN 'done' WHEN nutrition_missed THEN 'missed' ELSE 'pending' END AS nutrition`,
+       CASE WHEN nutrition THEN 'done' WHEN nutrition_missed THEN 'missed' ELSE 'pending' END AS nutrition,
+       CASE WHEN vibe_coding THEN 'done' WHEN vibe_coding_missed THEN 'missed' ELSE 'pending' END AS vibe_coding`,
     [req.dbUser.id, date, done, missed]
   );
   res.json(result.rows[0]);
