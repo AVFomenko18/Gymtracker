@@ -108,13 +108,38 @@
     .program-item-info { flex: 1; }
     .program-item-name { font-size: 15px; font-weight: 600; }
     .program-item-count { font-size: 12px; opacity: 0.5; margin-top: 2px; }
+    .create-choice {
+      width: 100%; min-height: 56px; border: none; border-radius: 12px;
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      color: var(--tg-theme-text-color, #000); cursor: pointer;
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+      font-size: 15px; font-weight: 600; text-align: left;
+    }
+    .create-choice + .create-choice { margin-top: 8px; }
+    .create-choice:active { opacity: 0.7; }
+    .create-choice-icon { font-size: 24px; width: 32px; text-align: center; }
+    .program-exercise-picker {
+      overflow-y: auto; flex: 1; min-height: 100px; margin-bottom: 14px;
+      border-top: 1px solid var(--tg-theme-secondary-bg-color, #f0f0f0);
+    }
+    .program-exercise-option {
+      display: flex; align-items: center; gap: 10px; min-height: 48px;
+      border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #f0f0f0);
+      cursor: pointer;
+    }
+    .program-exercise-option input { width: 22px; height: 22px; accent-color: var(--tg-theme-button-color, #2481cc); }
+    .program-exercise-option-name { flex: 1; font-size: 14px; }
+    .program-picker-group {
+      font-size: 11px; font-weight: 700; opacity: .5; text-transform: uppercase;
+      letter-spacing: .4px; padding: 12px 0 5px;
+    }
   </style>
 </head>
 <body>
   <div class="header">
     <button id="back-btn" class="btn-back">←</button>
     <span id="page-title">Упражнения</span>
-    <button onclick="openModal()" class="btn-header-icon" style="margin-left:auto">+</button>
+    <button onclick="openCreateMenu()" class="btn-header-icon" style="margin-left:auto" aria-label="Добавить">+</button>
   </div>
 
   <div class="search-wrap">
@@ -123,6 +148,34 @@
 
   <div id="programs-section"></div>
   <div id="list"></div>
+
+  <!-- Add menu -->
+  <div class="modal-overlay" id="create-menu" style="display:none" onclick="if(event.target===this)closeCreateMenu()">
+    <div class="modal">
+      <div class="modal-title">Что добавить?</div>
+      <button class="create-choice" onclick="chooseCreateExercise()">
+        <span class="create-choice-icon">🏋️</span><span>Новое упражнение</span>
+      </button>
+      <button class="create-choice" onclick="openCreateProgram()">
+        <span class="create-choice-icon">📋</span><span>Новую программу тренировок</span>
+      </button>
+      <button class="btn-cancel" style="width:100%;margin-top:14px" onclick="closeCreateMenu()">Отмена</button>
+    </div>
+  </div>
+
+  <!-- Create program modal -->
+  <div class="modal-overlay" id="create-prog-modal" style="display:none" onclick="if(event.target===this)closeCreateProgram()">
+    <div class="modal" style="max-height:85vh;display:flex;flex-direction:column;overflow:hidden;padding-bottom:28px">
+      <div class="modal-title">Новая программа тренировок</div>
+      <input class="modal-input" type="text" id="create-prog-name" placeholder="Название программы" maxlength="100">
+      <div style="font-size:13px;opacity:0.6;margin-bottom:8px">Выберите упражнения:</div>
+      <div id="create-prog-exercises" class="program-exercise-picker"></div>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closeCreateProgram()">Отмена</button>
+        <button class="btn-save" id="create-prog-save" onclick="saveCreateProgram()">Создать</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Edit program modal -->
   <div class="modal-overlay" id="edit-prog-modal" style="display:none" onclick="if(event.target===this)closeEditProgram()">
@@ -181,8 +234,95 @@
     let programs = [];
     let editingId = null;
     let selectedMuscle = MUSCLE_GROUPS[0];
+    let creatingProgramExerciseIds = new Set();
 
     // ── Programs ──────────────────────────────────────────────────────────────
+
+    function openCreateMenu() {
+      if (selectMode) { openModal(); return; }
+      document.getElementById('create-menu').style.display = 'flex';
+    }
+
+    function closeCreateMenu() {
+      document.getElementById('create-menu').style.display = 'none';
+    }
+
+    function chooseCreateExercise() {
+      closeCreateMenu();
+      openModal();
+    }
+
+    function openCreateProgram() {
+      closeCreateMenu();
+      creatingProgramExerciseIds = new Set();
+      document.getElementById('create-prog-name').value = '';
+      renderCreateProgramExercises();
+      document.getElementById('create-prog-modal').style.display = 'flex';
+      setTimeout(() => document.getElementById('create-prog-name').focus(), 100);
+    }
+
+    function closeCreateProgram() {
+      document.getElementById('create-prog-modal').style.display = 'none';
+      creatingProgramExerciseIds = new Set();
+    }
+
+    function renderCreateProgramExercises() {
+      const el = document.getElementById('create-prog-exercises');
+      if (!exercises.length) {
+        el.innerHTML = '<div style="opacity:.5;font-size:13px;padding:16px 0">Сначала добавьте хотя бы одно упражнение</div>';
+        return;
+      }
+      const groups = {};
+      for (const ex of exercises) {
+        const group = ex.muscle_group || 'Другое';
+        if (!groups[group]) groups[group] = [];
+        groups[group].push(ex);
+      }
+      let html = '';
+      for (const [group, list] of Object.entries(groups)) {
+        html += `<div class="program-picker-group">${group}</div>`;
+        for (const ex of list) {
+          const id = String(ex.id);
+          html += `<label class="program-exercise-option">
+            <input type="checkbox" value="${id}" ${creatingProgramExerciseIds.has(id) ? 'checked' : ''}
+              onchange="toggleCreateProgramExercise('${id}', this.checked)">
+            <span style="font-size:17px">${muscleIcon(ex.muscle_group)}</span>
+            <span class="program-exercise-option-name">${ex.name}</span>
+          </label>`;
+        }
+      }
+      el.innerHTML = html;
+    }
+
+    function toggleCreateProgramExercise(id, checked) {
+      if (checked) creatingProgramExerciseIds.add(String(id));
+      else creatingProgramExerciseIds.delete(String(id));
+    }
+
+    async function saveCreateProgram() {
+      const nameInput = document.getElementById('create-prog-name');
+      const name = nameInput.value.trim();
+      if (!name) { nameInput.focus(); return; }
+      const button = document.getElementById('create-prog-save');
+      button.disabled = true;
+      button.textContent = 'Создаём…';
+      try {
+        await api.post('/api/programs', {
+          name,
+          exercise_ids: Array.from(creatingProgramExerciseIds),
+        });
+        closeCreateProgram();
+        dataCache.clear('programs');
+        programs = await api.get('/api/programs');
+        dataCache.set('programs', programs);
+        renderPrograms();
+      } catch (err) {
+        alert('Ошибка: ' + err.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Создать';
+      }
+    }
 
     function renderPrograms() {
       const el = document.getElementById('programs-section');
