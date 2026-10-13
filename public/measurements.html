@@ -77,6 +77,10 @@
         <input class="field-input" type="number" id="m-waist" placeholder="0" min="0">
       </div>
       <div class="field-row">
+        <span class="field-label">Живот и бока<span class="field-unit">см</span></span>
+        <input class="field-input" type="number" id="m-abdomen-sides" placeholder="0" step="0.1" min="0">
+      </div>
+      <div class="field-row">
         <span class="field-label">Бёдра<span class="field-unit">см</span></span>
         <input class="field-input" type="number" id="m-hips" placeholder="0" min="0">
       </div>
@@ -139,6 +143,7 @@
           { label:'% жира', value: m.body_fat_pct, unit:'%' },
           { label:'Грудь', value: m.chest_cm, unit:'см' },
           { label:'Талия', value: m.waist_cm, unit:'см' },
+          { label:'Живот и бока', value: m.abdomen_sides_cm, unit:'см' },
           { label:'Бёдра', value: m.hips_cm, unit:'см' },
           { label:'Бицепс', value: m.biceps_cm, unit:'см' },
           { label:'Бедро', value: m.thigh_cm, unit:'см' },
@@ -173,6 +178,7 @@
         body_fat_pct: val('m-fat'),
         chest_cm:    val('m-chest'),
         waist_cm:    val('m-waist'),
+        abdomen_sides_cm: val('m-abdomen-sides'),
         hips_cm:     val('m-hips'),
         biceps_cm:   val('m-biceps'),
         thigh_cm:    val('m-thigh'),
@@ -188,7 +194,7 @@
       dataCache.clear('measurements');
 
       // Clear inputs
-      ['m-weight','m-fat','m-chest','m-waist','m-hips','m-biceps','m-thigh']
+      ['m-weight','m-fat','m-chest','m-waist','m-abdomen-sides','m-hips','m-biceps','m-thigh']
         .forEach(id => document.getElementById(id).value = '');
       document.getElementById('m-date').value = localToday();
 

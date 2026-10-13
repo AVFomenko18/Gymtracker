@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS body_measurements (
   weight_kg NUMERIC(5,2),
   chest_cm NUMERIC(5,2),
   waist_cm NUMERIC(5,2),
+  abdomen_sides_cm NUMERIC(5,2),
   hips_cm NUMERIC(5,2),
   biceps_cm NUMERIC(5,2),
   thigh_cm NUMERIC(5,2),

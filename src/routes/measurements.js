@@ -13,14 +13,14 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { date, weight_kg, chest_cm, waist_cm, hips_cm, biceps_cm, thigh_cm, body_fat_pct, note } = req.body;
+  const { date, weight_kg, chest_cm, waist_cm, abdomen_sides_cm, hips_cm, biceps_cm, thigh_cm, body_fat_pct, note } = req.body;
   const result = await pool.query(
     `INSERT INTO body_measurements
-       (user_id, date, weight_kg, chest_cm, waist_cm, hips_cm, biceps_cm, thigh_cm, body_fat_pct, note)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       (user_id, date, weight_kg, chest_cm, waist_cm, abdomen_sides_cm, hips_cm, biceps_cm, thigh_cm, body_fat_pct, note)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      RETURNING *`,
     [req.dbUser.id, date || new Date().toISOString().slice(0,10),
-     weight_kg||null, chest_cm||null, waist_cm||null, hips_cm||null,
+     weight_kg||null, chest_cm||null, waist_cm||null, abdomen_sides_cm||null, hips_cm||null,
      biceps_cm||null, thigh_cm||null, body_fat_pct||null, note||null]
   );
   res.status(201).json(result.rows[0]);

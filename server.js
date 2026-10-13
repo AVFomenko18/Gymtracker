@@ -104,6 +104,12 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_daily_habits_user_date ON daily_habits(user_id, date);
 `).catch(e => console.error('Daily habits migration failed:', e.message));
 
+// Add newer body measurement fields to existing databases
+pool.query(`
+  ALTER TABLE body_measurements
+  ADD COLUMN IF NOT EXISTS abdomen_sides_cm NUMERIC(5,2);
+`).catch(e => console.error('Body measurements migration failed:', e.message));
+
 // Keep Neon warm — free tier auto-suspends after 5 min of inactivity
 setInterval(async () => {
   try { await pool.query('SELECT 1'); } catch {}
